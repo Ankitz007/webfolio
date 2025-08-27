@@ -3,9 +3,11 @@ title: 'v1.6.0: "Mobile Navigation & Subposts"'
 description: 'This new version introduces improved mobile navigation (via sticky table of contents) and the concept of "subposts."'
 date: 2025-05-21
 tags: ['v1.6.0']
-image: './banner.png'
-authors: ['enscribe']
+authors: ['ankitz007']
+draft: true
 ---
+
+import FirstSubpost from '@/components/mdx/FirstSubpost.astro'
 
 ## Two major improvements to the reading experience
 
@@ -80,3 +82,5 @@ What's great about the way I engineered subposts is that it's fully backwards-co
 ## Go ahead and read the subposts
 
 On desktop, the `<SubpostsSidebar>{:tsx}` sticks to the right column on your screen, and you can click on any of the subposts to read them. On mobile, it will turn into a `<SubpostsHeader>{:tsx}` component that will appear underneath the sticky header, above the sticky table of contents we just added.
+
+<FirstSubpost title="Implementing sticky mobile navigation" href="/blog/mobile-nav-and-subposts/mobile-navigation" />
