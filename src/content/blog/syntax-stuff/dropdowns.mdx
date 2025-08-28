@@ -1,0 +1,198 @@
+---
+title: Dropdowns
+description: 'Learn how to use dropdowns.'
+date: 2025-08-28
+tags: ['syntax']
+authors: ['ankitz007']
+order: 2
+draft: false
+---
+
+## Details Dropdown
+
+```md title=':::details.md'
+:::details
+::summary[This is a dropdown]
+
+- List item 1
+- List item 2
+- List item 3
+- List item 4
+  :::
+```
+
+:::details
+::summary[This is a dropdown]
+
+- List item 1
+- List item 2
+- List item 3
+- List item 4
+  :::
+
+Additionally, it also supports usage similar to the [examples in remark-directive](https://github.com/remarkjs/remark-directive?tab=readme-ov-file#use).
+
+## More Dropdown Examples
+
+### Nested Dropdowns
+
+```md title='Nested Dropdowns'
+:::details
+::summary[Parent Dropdown]
+Content in parent dropdown.
+:::details
+::summary[Nested Dropdown]
+Content in nested dropdown.
+:::
+:::
+```
+
+:::details
+::summary[Parent Dropdown]
+Content in parent dropdown.
+:::details
+::summary[Nested Dropdown]
+Content in nested dropdown.
+:::
+
+### Dropdown with Tables
+
+```md title='Dropdown with Table'
+:::details
+::summary[Show table data]
+
+| Feature          | Supported | Notes             |
+| ---------------- | --------- | ----------------- |
+| Markdown         | ✅        | Full support      |
+| Images           | ✅        | Local and remote  |
+| Code blocks      | ✅        | All languages     |
+| Nested dropdowns | ✅        | Unlimited nesting |
+
+:::
+```
+
+:::details
+::summary[Show table data]
+
+| Feature          | Supported | Notes             |
+| ---------------- | --------- | ----------------- |
+| Markdown         | ✅        | Full support      |
+| Images           | ✅        | Local and remote  |
+| Code blocks      | ✅        | All languages     |
+| Nested dropdowns | ✅        | Unlimited nesting |
+
+:::
+
+### Multiple Dropdowns with Different Content
+
+```md title='FAQ Style Dropdowns'
+:::details
+::summary[What is a dropdown?]
+A dropdown is a collapsible content area that can be toggled to show or hide information.
+:::
+
+:::details
+::summary[How do I create nested dropdowns?]
+You can nest dropdowns by placing one `:::details` block inside another.
+:::
+
+:::details
+::summary[Can I use HTML inside dropdowns?]
+Yes! You can use any valid Markdown or HTML content inside dropdowns.
+:::
+```
+
+:::details
+::summary[What is a dropdown?]
+A dropdown is a collapsible content area that can be toggled to show or hide information.
+:::
+
+:::details
+::summary[How do I create nested dropdowns?]
+You can nest dropdowns by placing one `:::details` block inside another.
+:::
+
+:::details
+::summary[Can I use HTML inside dropdowns?]
+Yes! You can use any valid Markdown or HTML content inside dropdowns.
+:::
+
+### Dropdown with Image
+
+```md title='Dropdown with Image'
+:::details
+::summary[Show image]
+![Dropdown Image](https://res.cloudinary.com/ankitz007/image/upload/v1755239543/samples/coffee.jpg)
+:::
+```
+
+:::details
+::summary[Show image]
+![Dropdown Image](https://res.cloudinary.com/ankitz007/image/upload/v1755239543/samples/coffee.jpg)
+:::
+
+## Using DropdownMenu Component in Astro/MDX
+
+You can also use the custom React dropdown menu in Astro/MDX files. Here's how to implement it:
+
+```tsx title='DropdownMenu Example'
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from '@/components/ui/dropdown-menu'
+;<DropdownMenu>
+  <DropdownMenuTrigger>
+    <button>Open Menu</button>
+  </DropdownMenuTrigger>
+  <DropdownMenuContent>
+    <DropdownMenuItem>Item 1</DropdownMenuItem>
+    <DropdownMenuItem>Item 2</DropdownMenuItem>
+    <DropdownMenuItem>Item 3</DropdownMenuItem>
+  </DropdownMenuContent>
+</DropdownMenu>
+```
+
+### Advanced React Dropdown Example
+
+```tsx title='Advanced DropdownMenu with Groups and Shortcuts'
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuGroup,
+  DropdownMenuSeparator,
+  DropdownMenuLabel,
+  DropdownMenuShortcut,
+} from '@/components/ui/dropdown-menu'
+;<DropdownMenu>
+  <DropdownMenuTrigger asChild>
+    <button className="rounded bg-blue-500 px-4 py-2 text-white hover:bg-blue-600">
+      Open Advanced Menu
+    </button>
+  </DropdownMenuTrigger>
+  <DropdownMenuContent>
+    <DropdownMenuLabel>My Account</DropdownMenuLabel>
+    <DropdownMenuSeparator />
+    <DropdownMenuGroup>
+      <DropdownMenuItem>
+        Profile
+        <DropdownMenuShortcut>⇧⌘P</DropdownMenuShortcut>
+      </DropdownMenuItem>
+      <DropdownMenuItem>
+        Settings
+        <DropdownMenuShortcut>⌘,</DropdownMenuShortcut>
+      </DropdownMenuItem>
+    </DropdownMenuGroup>
+    <DropdownMenuSeparator />
+    <DropdownMenuItem>
+      Log out
+      <DropdownMenuShortcut>⇧⌘Q</DropdownMenuShortcut>
+    </DropdownMenuItem>
+  </DropdownMenuContent>
+</DropdownMenu>
+```
+
+**Note:** The React dropdown components require proper client-side rendering and may need additional setup in your Astro configuration to work correctly in MDX files. For reliable dropdowns that work everywhere, prefer the Markdown `:::details` syntax or HTML `<details>` elements.

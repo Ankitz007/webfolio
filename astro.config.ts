@@ -10,14 +10,14 @@ import { rehypeHeadingIds } from '@astrojs/markdown-remark'
 import rehypeExternalLinks from 'rehype-external-links'
 import rehypeKatex from 'rehype-katex'
 import rehypePrettyCode from 'rehype-pretty-code'
-import remarkEmoji from 'remark-emoji'
-import remarkMath from 'remark-math'
 import rehypeDocument from 'rehype-document'
 
 import { pluginCollapsibleSections } from '@expressive-code/plugin-collapsible-sections'
 import { pluginLineNumbers } from '@expressive-code/plugin-line-numbers'
 
 import tailwindcss from '@tailwindcss/vite'
+
+import { remarkPlugins } from './plugins'
 
 export default defineConfig({
   site: 'https://ankitz007.vercel.app',
@@ -108,6 +108,6 @@ export default defineConfig({
         },
       ],
     ],
-    remarkPlugins: [remarkMath, remarkEmoji],
+    remarkPlugins,
   },
 })

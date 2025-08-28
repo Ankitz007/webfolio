@@ -1,0 +1,65 @@
+---
+title: Styled links and badges
+description: 'Learn how to use styled links and badges in your Markdown documents.'
+date: 2025-08-28
+tags: ['syntax']
+authors: ['ankitz007']
+order: 1
+draft: false
+---
+
+## Styled Links
+
+Use the `:link` directive from :link[remark-directive-sugar]{id=lin-stephanie/remark-directive-sugar .github} to add links with avatars or favicons for GitHub, npm, or custom URLs. Customize via the link option in `plugins/index.ts` and style under `/* :link */` in `src/styles/markdown.css`.
+
+### Link to a GitHub user or organization (prepend `id` with `@`)
+
+**Example 1**: `:link[Stephanie Lin]{#@lin-stephanie}` links to the GitHub profile of the project maintainer, :link[Stephanie Lin]{#@lin-stephanie}.
+
+**Example 2**: `:link[Vite]{id=@vitejs}` links to the GitHub profile of the :link[Vite]{id=@vitejs} organization.
+
+**Example 3**: `:link{#@lin-stephanie tab=repositories}` links directly to the repositories tab of the GitHub user, like :link{#@lin-stephanie tab=repositories}. For GitHub users, valid `tab` options: `'repositories','projects', 'packages', 'stars', 'sponsoring', 'sponsors'`.
+
+**Example 4**: `:link{#@vitejs tab=org-people}` links directly to the people section of a GitHub organization, like :link{#@vitejs tab=org-people}. For GitHub organizations, valid `tab` options: `'org-repositories', 'org-projects', 'org-packages', 'org-sponsoring', and 'org-people'`.
+
+### Link to a GitHub repository
+
+**Example 5**: `:link[Astro]{#withastro/astro}` or `:link[Astro]{id=withastro/astro}` creates a link to :link[Astro]{#withastro/astro} repo.
+
+### Link to an npm package
+
+**Example 6**: `:link{#remark-directive-sugar}` links to the npm homepage of the :link{#remark-directive-sugar}.
+
+**Example 7**: `:link{id=remark-directive-sugar tab=dependencies}` links to the dependencies section of the :link{id=remark-directive-sugar tab=dependencies} on npm. For npm package, valid `tab` options: `'readme', 'code', 'dependencies', 'dependents', and 'versions'`.
+
+### Link to a custom URL (must use `id`, not `#`)
+
+**Example 8**: `:link{id=https://developer.mozilla.org/en-US/docs/Web/JavaScript}` creates an external link to the :link{id=https://developer.mozilla.org/en-US/docs/Web/JavaScript}.
+
+**Example 9**: `:link[Google]{id=https://www.google.com/}` creates an external link to the :link[Google]{id=https://www.google.com/}.
+
+### Customization
+
+**Example 10**: `:link[Vite]{id=@vitejs url=https://vite.dev/}` creates a :link[Vite]{id=@vitejs url=https://vite.dev/} to `https://vite.dev/` instead of `https://github.com/vitejs` by using the `url`.
+
+**Example 11**: `:link[Vite]{id=@vitejs img=https://vitejs.dev/logo.svg}` creates a :link[Vite]{id=@vitejs img=https://vitejs.dev/logo.svg} that displays a custom logo by using the `img`.
+
+**Example 12**: `:link{id=lin-stephanie/astro-antfustyle-theme class=github}` creates a :link{id=lin-stephanie/astro-antfustyle-theme class=github} with `class=github` (or `.github`) to override the default style of a GitHub repository.
+
+**Example 13**: `:link[Google]{id=https://www.google.com/ class=rounded}` creates a :link[Google]{id=https://www.google.com/ class=rounded} with `class=rounded` (or `.rounded`) to override the default style of a custom URL.
+
+**Example 14**: `:link[Google]{id=https://www.google.com/ class=square}` creates a :link[Google]{id=https://www.google.com/ class=square} with `class=square` (or `.square`) to override the default style of a custom URL.
+
+**Example 15**: `:link[send a little encouragement my way]{id=https://github.com/sponsors/lin-stephanie img=https://github.githubassets.com/assets/mona-e50f14d05e4b.png}` fully customizes a link.
+
+## Badges
+
+Use the [`:badge`](https://github.com/lin-stephanie/remark-directive-sugar?tab=readme-ov-file#badge-) directive from :link[remark-directive-sugar]{id=lin-stephanie/remark-directive-sugar .github} to display small pieces of information, such as status or category.
+
+The theme provides the following three predefined badges. You can customize them via the `badge` option in `plugins/index.ts` and style them under `/* :badge */` in `src/styles/markdown.css`.
+
+- `badge-n`: :badge-n
+- `badge-a`: :badge-a
+- `badge-v`: :badge-v
+
+Additionally, you can direct use `:badge[text]{attrs}` for easy visual customization of badges. For example: `:badge[ISSUE]{style="background-color: #bef264"}` will display as :badge[ISSUE]{style="background-color: #bef264"}. If no color is specified, the default appearance will look like :badge[This].

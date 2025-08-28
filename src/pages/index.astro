@@ -4,6 +4,7 @@ import Link from '@/components/Link.astro'
 import PageHead from '@/components/PageHead.astro'
 import { buttonVariants } from '@/components/ui/button'
 import { SITE } from '@/consts'
+import HomeContent from '@/content/pages/index.mdx'
 import Layout from '@/layouts/Layout.astro'
 import { getRecentPosts } from '@/lib/data-utils'
 
@@ -17,19 +18,13 @@ const blog = await getRecentPosts(SITE.featuredPostCount)
       <div class="flex flex-col space-y-1.5 p-6">
         <h3 class="text-3xl leading-none font-medium">Ankit Singh</h3>
         <p class="text-muted-foreground text-sm">
-          /ˈɑːŋ-kɪt sɪŋ/ &bull; <span class="font-medium">Software Developer</span>
+          /ˈɑːŋ-kɪt sɪŋ/ &bull; <span class="font-medium"
+            >Software Developer</span
+          >
         </p>
       </div>
-      <div class="p-6 pt-0">
-        <p class="text-muted-foreground mb-2 text-sm">
-          I am a passionate software developer from India, active online as <strong>ankitz007</strong>. 
-          I love exploring new technologies and sharing my knowledge through blogging. 
-        </p>
-
-        <p class="text-muted-foreground mb-2 text-sm">
-          I love clean systems, efficient design, and making stuff just work.
-          I learn and write about algorithms, systems and backend, primarily using Python and Go.
-        </p>
+      <div class="p-6 pt-0 text-muted-foreground mb-2 text-sm">
+        <HomeContent />
       </div>
     </div>
   </section>

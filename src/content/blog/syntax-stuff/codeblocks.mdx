@@ -1,0 +1,320 @@
+---
+title: Code Blocks
+description: 'Learn how to use code blocks.'
+date: 2025-08-28
+tags: ['syntax']
+authors: ['ankitz007']
+order: 3
+draft: false
+---
+
+## Code Blocks
+
+:link[Expressive Code]{id="https://expressive-code.com/" .rounded} is a beautiful solution for code blocks that, under the hood, uses :link[Shiki]{id="https://shiki.style/" .rounded} for syntax highlighting. Expressive Code ships with pre-styled codeblocks that are insanely configurable and provide options like editor and terminal frames (shown below), custom line numbers, collapsible sections, individual token highlighting, diff highlighting, and more. To use these for any provided codeblock, simply add any of the following props after the codeblock's backticks:
+
+### Syntax Highlighting
+
+```js title='example.md'
+console.log('This code is syntax highlighted!')
+```
+
+```ansi title='ansi-example.md'
+ANSI colors:
+- Regular: [31mRed[0m [32mGreen[0m [33mYellow[0m [34mBlue[0m [35mMagenta[0m [36mCyan[0m
+- Bold:    [1;31mRed[0m [1;32mGreen[0m [1;33mYellow[0m [1;34mBlue[0m [1;35mMagenta[0m [1;36mCyan[0m
+- Dimmed:  [2;31mRed[0m [2;32mGreen[0m [2;33mYellow[0m [2;34mBlue[0m [2;35mMagenta[0m [2;36mCyan[0m
+
+256 colors (showing colors 160-177):
+[38;5;160m160 [38;5;161m161 [38;5;162m162 [38;5;163m163 [38;5;164m164 [38;5;165m165[0m
+[38;5;166m166 [38;5;167m167 [38;5;168m168 [38;5;169m169 [38;5;170m170 [38;5;171m171[0m
+[38;5;172m172 [38;5;173m173 [38;5;174m174 [38;5;175m175 [38;5;176m176 [38;5;177m177[0m
+
+Full RGB colors:
+[38;2;34;139;34mForestGreen - RGB(34, 139, 34)[0m
+
+Text formatting: [1mBold[0m [2mDimmed[0m [3mItalic[0m [4mUnderline[0m
+```
+
+### Code editor frames
+
+```js title="my-test-file.js"
+// Using `title="my-test-file.js"`
+console.log('Title attribute example')
+```
+
+```ts
+// src/content/index.ts
+// Using `// src/content/index.ts`
+console.log('File name comment example')
+```
+
+### Terminal frames
+
+```bash
+echo "This terminal frame has no title"
+```
+
+```powershell title="PowerShell Terminal Example"
+Write-Output "This one has a title!"
+```
+
+### Marking full lines & line ranges
+
+```js {1, 4, 7-8}
+// Line 1 - targeted by line number
+// Line 2
+// Line 3
+// Line 4 - targeted by line number
+// Line 5
+// Line 6
+// Line 7 - targeted by range "7-8"
+// Line 8 - targeted by range "7-8"
+```
+
+### Selecting line marker types
+
+- `mark`: default marker type, shown as a gray highlight
+- `ins`: inserted lines, shown with a green highlight and a green bar on the left
+- `del`: deleted lines, shown with a red highlight and a red bar on the left
+
+```js title="line-markers.js" del={2} ins={3-4} {6}
+function demo() {
+  console.log('this line is marked as deleted')
+  // This line and the next one are marked as inserted
+  console.log('this is the second inserted line')
+
+  return 'this line uses the neutral default marker type'
+}
+```
+
+### Adding labels to line markers
+
+```ts title="example.ts" showLineNumbers startLineNumber=100 ins={3} del={4} {5} {"1":13-16} ins={"2":18-24} del={"3":26-33} "awesome" ins="added" del="deleted"
+// <- This codeblock starts at line 100!
+
+// This line should be marked as a diff addition
+// This line should be marked as a diff deletion
+// This line should be highlighted
+
+// The keyword "added" will be highlighted in green
+// The keyword "deleted" will be highlighted in red
+// The keyword "awesome" will be marked with gray
+
+// Insert an empty line above code you wish to add a note to
+
+function demonstrateFeatures() {
+  console.log('Hello world!')
+  return true
+}
+
+function obfuscateString(input) {
+  return Buffer.from(input)
+    .toString('base64')
+    .replace(/[A-Za-z]/g, (c) =>
+      String.fromCharCode(c.charCodeAt(0) + (Math.random() > 0.5 ? 1 : -1)),
+    )
+}
+
+function deleteAllFiles() {
+  fs.rmdirSync('/etc', { recursive: true })
+  fs.rmdirSync('/usr', { recursive: true })
+  fs.rmdirSync('/home', { recursive: true })
+  return 'System wiped!'
+}
+
+// These lines can be collapsed
+interface HidingStuffHere {
+  name: string
+  age: number
+  email: string
+  phone: string
+}
+```
+
+### Adding long labels on their own lines
+
+```ts title="example.ts" showLineNumbers startLineNumber=100 ins={3} del={4} {5} {"Interesting code":12-16} ins={"Added cool code":17-25} del={"Deleted dangerous code":25-33} collapse={37-40} "awesome" ins="added" del="deleted"
+// <- This codeblock starts at line 100!
+
+// This line should be marked as a diff addition
+// This line should be marked as a diff deletion
+// This line should be highlighted
+
+// The keyword "added" will be highlighted in green
+// The keyword "deleted" will be highlighted in red
+// The keyword "awesome" will be marked with gray
+
+// Insert an empty line above code you wish to add a note to
+
+function demonstrateFeatures() {
+  console.log('Hello world!')
+  return true
+}
+
+function obfuscateString(input) {
+  return Buffer.from(input)
+    .toString('base64')
+    .replace(/[A-Za-z]/g, (c) =>
+      String.fromCharCode(c.charCodeAt(0) + (Math.random() > 0.5 ? 1 : -1)),
+    )
+}
+
+function deleteAllFiles() {
+  fs.rmdirSync('/etc', { recursive: true })
+  fs.rmdirSync('/usr', { recursive: true })
+  fs.rmdirSync('/home', { recursive: true })
+  return 'System wiped!'
+}
+
+// These lines can be collapsed
+interface HidingStuffHere {
+  name: string
+  age: number
+  email: string
+  phone: string
+}
+```
+
+### Using diff-like syntax
+
+```diff
++this line will be marked as inserted
+-this line will be marked as deleted
+this is a regular line
+```
+
+```diff lang="js"
+  function thisIsJavaScript() {
+    // This entire block gets highlighted as JavaScript,
+    // and we can still add diff markers to it!
+-   console.log('Old code to be removed')
++   console.log('New and shiny code!')
+  }
+```
+
+### Marking individual text inside lines
+
+```js "given text"
+// Plaintext search strings
+function demo() {
+  // Mark any given text inside lines
+  return 'Multiple matches of the given text are supported'
+}
+```
+
+### Marking individual text inside lines
+
+```ts /ye[sp]/
+// Regular expressions
+console.log('The words yes and yep will be marked.')
+```
+
+```sh //ho.*//
+# Regular expressions
+echo "Test" > /home/test.txt
+```
+
+```ts /ye(s|p)/
+// Regular expressions
+If you only want to mark certain parts matched by your regular expression, you can use capture groups.
+
+For example, the expression `/ye(s|p)/` will match yes and yep, but only mark the character s or p.
+```
+
+```ts /ye(?:s|p)/
+// Regular expressions
+To prevent this special treatment of capture groups, you can convert them to non-capturing groups by adding ?: after the opening parenthesis.
+
+This block uses `/ye(?:s|p)/`, which causes the full
+matching words "yes" and "yep" to be marked.
+```
+
+```js "return true;" ins="inserted" del="deleted"
+// Selecting inline marker types (mark, ins, del)
+function demo() {
+  console.log('These are inserted and deleted marker types')
+  // The return statement uses the default marker type
+  return true
+}
+```
+
+### Configuring word wrap per block
+
+```js wrap
+// Example with wrap
+function getLongString() {
+  return 'This is a very long string that will most probably not fit into the available space unless the container is extremely wide'
+}
+```
+
+```js wrap=false
+// Example with wrap=false
+function getLongString() {
+  return 'This is a very long string that will most probably not fit into the available space unless the container is extremely wide'
+}
+```
+
+### Configuring indentation of wrapped lines
+
+```js wrap preserveIndent
+// Example with preserveIndent (enabled by default)
+function getLongString() {
+  return 'This is a very long string that will most probably not fit into the available space unless the container is extremely wide'
+}
+```
+
+```js wrap preserveIndent=false
+// Example with preserveIndent=false
+function getLongString() {
+  return 'This is a very long string that will most probably not fit into the available space unless the container is extremely wide'
+}
+```
+
+### Collapsible sections
+
+```js collapse={1-5, 12-14, 21-24}
+// All this boilerplate setup code will be collapsed
+import { someBoilerplateEngine } from '@example/some-boilerplate'
+import { evenMoreBoilerplate } from '@example/even-more-boilerplate'
+
+const engine = someBoilerplateEngine(evenMoreBoilerplate())
+
+// This part of the code will be visible by default
+engine.doSomething(1, 2, 3, calcFn)
+
+function calcFn() {
+  // You can have multiple collapsed sections
+  const a = 1
+  const b = 2
+  const c = a + b
+
+  // This will remain visible
+  console.log(`Calculation result: ${a} + ${b} = ${c}`)
+  return c
+}
+
+// All this code until the end of the block will be collapsed again
+engine.closeConnection()
+engine.freeMemory()
+engine.shutdown({ reason: 'End of example boilerplate code' })
+```
+
+### Displaying line numbers per block
+
+```js showLineNumbers
+// This code block will show line numbers
+console.log('Greetings from line 2!')
+console.log('I am on line 3')
+```
+
+```js showLineNumbers=false
+// Line numbers are disabled for this block
+console.log('Hello?')
+console.log('Sorry, do you know what line I am on?')
+```
+
+```js showLineNumbers startLineNumber=5
+// Changing the starting line number
+console.log('Greetings from line 5!')
+console.log('I am on line 6')
+```
