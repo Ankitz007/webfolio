@@ -1,10 +1,11 @@
 ---
 import Breadcrumbs from '@/components/Breadcrumbs.astro'
-import Link from '@/components/Link.astro'
 import PageHead from '@/components/PageHead.astro'
 import ProjectCard from '@/components/ProjectCard.astro'
 import Layout from '@/layouts/Layout.astro'
 import { getAllProjects } from '@/lib/data-utils'
+import { Image } from 'astro:assets'
+import Callout from '@/components/Callout.astro'
 
 const projects = await getAllProjects()
 ---
@@ -16,29 +17,75 @@ const projects = await getAllProjects()
   <section>
     <div class="min-w-full">
       <div class="prose mb-8">
+        <Image
+          src="https://res.cloudinary.com/ankitz007/image/upload/v1747485765/profile/banner_h0jwkk.webp"
+          alt="My den"
+          width={1200}
+          height={630}
+          class="h-full w-full rounded-lg object-cover"
+          loading="lazy"
+        />
+
         <p class="mt-0">
-          astro-erudite is an opinionated, unstyled static blogging template
-          that prioritizes simplicity and performance, built with <Link
-            href="https://astro.build"
-            external
-            underline>Astro</Link
-          >, <Link href="https://tailwindcss.com" external underline
-            >Tailwind</Link
-          >, and <Link href="https://ui.shadcn.com" external underline
-            >shadcn/ui</Link
-          >. It provides a clean foundation for your content while being
-          extremely easy to customize.
+          I never thought my dream was to be a Software Engineer. During my
+          school days, I tried sports, science, (chess) and what not — but I
+          kind of just felt meh. I yearned to learn more, yearned to learn
+          something different. Then I joined college.
         </p>
+
         <p>
-          To learn more about the philosophy behind this template, check out the
-          following blog post: <Link
-            href="/blog/the-state-of-static-blogs"
-            underline>The State of Static Blogs in 2024</Link
-          >.
+          And that's when it happened: the spark I was missing ignited the
+          instant I clicked play on my first <code>Python tutorial</code> video (<code
+            >The New Boston</code
+          >, if I remember correctly). Since then, I can't get enough. Software
+          development calls to all my passions; it combines creativity and
+          problem solving, and I'm allowed to break it to improve the code (in a
+          separate Git branch, of course).
+        </p>
+
+        <p>
+          I like to <code>automate things</code> and find solutions for <code
+            >real life problems using code</code
+          >. I'm highly fascinated by FOSS (Free and Open Source Software) and
+          want to contribute to the Open Source community. When it comes to web
+          development, I love applying responsive design principles and watching
+          pages shrink into mobile screens and still look great. I am fascinated
+          by the way back-end interacts with front-end and delivers smooth, fast
+          interactions to clients.
+        </p>
+
+        <figure class="text-center">
+          <Image
+            src="https://res.cloudinary.com/ankitz007/image/upload/v1747485763/profile/workspace_vlqpz1.webp"
+            alt="My den"
+            width={1200}
+            height={630}
+            class="mb-2.5 h-full w-full rounded-lg object-cover"
+            loading="lazy"
+          />
+          <figcaption class="text-muted-foreground text-sm">
+            This is how my den looks like. Well, not exactly, but you get the
+            idea, right?
+          </figcaption>
+        </figure>
+
+        <Callout variant="fact" title='Actually, the truth 😂'>
+          <p>I can usually be found doing two things:</p>
+          <ul>
+            <li>Binge watching TV-shows/movies</li>
+            <li>Exploring Software and Systems</li>
+          </ul>
+        </Callout>
+
+        <p>
+          I'm still enthusiastically grabbing onto any other tools, techniques,
+          or principles I can integrate into the coding web in my head. I’m also
+          eager to meet other software developers in the area, so feel free to
+          connect!
         </p>
       </div>
 
-      <h2 class="mb-4 text-2xl font-medium">Example Projects Listing</h2>
+      <h2 class="mb-4 text-2xl font-medium">Projects</h2>
       <div class="flex flex-col gap-4">
         {projects.map((project) => <ProjectCard project={project} />)}
       </div>

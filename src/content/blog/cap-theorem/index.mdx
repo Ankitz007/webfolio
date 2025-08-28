@@ -70,7 +70,7 @@ Imagine a simple distributed database with two nodes, Node 1 and Node 2, storing
 
 What should Node 2 do?
 
-#### Choice 1: Prioritize Consistency (or sacrifice Availability) - CP System
+#### Choice 1: Prioritize Consistency - CP System
 
 To guarantee **Consistency**, Node 2 cannot return its stale value `V=10`. It knows it might be out of sync because it can't communicate with Node 1. It must either:
 
@@ -79,7 +79,7 @@ To guarantee **Consistency**, Node 2 cannot return its stale value `V=10`. It kn
 
 In either case, Node 2 becomes **Unavailable** for reads of `V` during the partition to avoid returning inconsistent data.
 
-#### Choice 2: Prioritize Availability (or sacrifice Consistency) - AP System
+#### Choice 2: Prioritize Availability - AP System
 
 To guarantee **Availability**, Node 2 must respond to the read request. Since it cannot reach Node 1 to get the latest value, it returns the best value it has: `V=10`.
 
@@ -91,7 +91,7 @@ This dilemma shows why, in the presence of a partition (P), you must choose betw
 
 Based on the choice made during a partition, distributed systems are often categorized:
 
-### CP Systems (Consistency + Partition Tolerance)
+### CP Systems
 
 - **Prioritizes**: Data correctness and consistency above all else.
 - **Behavior During Partition**: May refuse reads or writes on some nodes to prevent returning stale or conflicting data. Portions of the system might become unavailable.
@@ -104,7 +104,7 @@ Based on the choice made during a partition, distributed systems are often categ
  - MongoDB can be configured for stronger consistency, potentially behaving as CP during partitions (writes require acknowledgment from a majority, reads can target the primary or a majority).
 </Callout>
 
-### AP Systems (Availability + Partition Tolerance)
+### AP Systems
 
 - **Prioritizes**: System uptime and responsiveness, even if it means data might be temporarily inconsistent.
 - **Behavior During Partition**: All reachable nodes remain available for reads and writes. Reads might return stale data. Conflicting writes occurring on different sides of the partition might need reconciliation later (often using techniques like "last write wins" or vector clocks). This often leads to **Eventual Consistency**.
@@ -117,7 +117,7 @@ Based on the choice made during a partition, distributed systems are often categ
   - DNS system (updates propagate eventually).
 </Callout>
 
-### CA Systems (Consistency + Availability)
+### CA Systems
 
 - **Prioritizes**: Consistency and Availability, but cannot tolerate network partitions.
 - **Behavior During Partition**: The assumptions under which C and A are guaranteed break down. The system might fail entirely or behave unpredictably.
