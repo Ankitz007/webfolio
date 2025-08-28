@@ -25,7 +25,9 @@ const badgeVariants = cva(
   },
 )
 
-interface BadgeProps extends React.ComponentProps<'span'>, VariantProps<typeof badgeVariants> {
+interface BadgeProps
+  extends React.ComponentProps<'span'>,
+    VariantProps<typeof badgeVariants> {
   asChild?: boolean
   showTechIcon?: boolean
   techTag?: string
@@ -44,7 +46,8 @@ function Badge({
 
   // Determine which text to use for tech icon lookup
   const textForIcon = techTag || (typeof children === 'string' ? children : '')
-  const iconClass = showTechIcon && textForIcon ? getTechIconClass(textForIcon) : null
+  const iconClass =
+    showTechIcon && textForIcon ? getTechIconClass(textForIcon) : null
 
   return (
     <Comp

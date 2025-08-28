@@ -2,11 +2,9 @@
 import Breadcrumbs from '@/components/Breadcrumbs.astro'
 import PageHead from '@/components/PageHead.astro'
 import ProjectCard from '@/components/ProjectCard.astro'
+import AboutContent from '@/content/pages/about.mdx'
 import Layout from '@/layouts/Layout.astro'
 import { getAllProjects } from '@/lib/data-utils'
-import { Image } from 'astro:assets'
-import Callout from '@/components/Callout.astro'
-import AboutContent from '@/content/pages/about.mdx'
 
 const projects = await getAllProjects()
 ---

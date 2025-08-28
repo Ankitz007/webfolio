@@ -120,7 +120,7 @@ export async function getRecentPosts(
   return posts.slice(0, count)
 }
 
-export async function getSortedTags(): Promise<
+export async function getSortedTagsForPosts(): Promise<
   { tag: string; count: number }[]
 > {
   const tagCounts = await getAllTags()
@@ -301,4 +301,48 @@ export async function getTOCSections(postId: string): Promise<TOCSection[]> {
   }
 
   return sections
+}
+
+// Notes utility functions
+export async function getAllNotes(): Promise<CollectionEntry<'notes'>[]> {
+  const notes = await getCollection('notes')
+  return notes
+    .filter((note) => !note.data.draft)
+    .sort((a, b) => b.data.date.valueOf() - a.data.date.valueOf())
+}
+
+export async function getNotesByTag(
+  tag: string,
+): Promise<CollectionEntry<'notes'>[]> {
+  const notes = await getAllNotes()
+  return notes.filter((note) => note.data.tags?.includes(tag))
+}
+
+export async function getNoteTags(): Promise<Map<string, number>> {
+  const notes = await getAllNotes()
+  return notes.reduce((acc, note) => {
+    note.data.tags?.forEach((tag) => {
+      acc.set(tag, (acc.get(tag) || 0) + 1)
+    })
+    return acc
+  }, new Map<string, number>())
+}
+
+export function getRecentNotes(
+  notes: CollectionEntry<'notes'>[],
+  count: number,
+): CollectionEntry<'notes'>[] {
+  return notes.slice(0, count)
+}
+
+export async function getSortedTagsForNotes(): Promise<
+  { tag: string; count: number }[]
+> {
+  const tagCounts = await getNoteTags()
+  return [...tagCounts.entries()]
+    .map(([tag, count]) => ({ tag, count }))
+    .sort((a, b) => {
+      const countDiff = b.count - a.count
+      return countDiff !== 0 ? countDiff : a.tag.localeCompare(b.tag)
+    })
 }

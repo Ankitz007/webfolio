@@ -2,19 +2,23 @@ import type { IconMap, SocialLink, Site } from '@/types'
 
 export const SITE: Site = {
   title: 'Ankitz007',
-  description:
-    'Personal site and blog by Ankit Singh',
+  description: 'Personal site and blog by Ankit Singh',
   href: 'https://ankitz007.vercel.app',
   author: 'ankitz007',
   locale: 'en-US',
   featuredPostCount: 2,
   postsPerPage: 3,
+  notesPerPage: 6,
 }
 
 export const NAV_LINKS: SocialLink[] = [
   {
     href: '/blog',
     label: 'blog',
+  },
+  {
+    href: '/notes',
+    label: 'notes',
   },
   {
     href: '/about',
@@ -28,8 +32,8 @@ export const SOCIAL_LINKS: SocialLink[] = [
     label: 'GitHub',
   },
   {
-    href: "https://www.linkedin.com/in/ankitz007/",
-    label: 'LinkedIn'
+    href: 'https://www.linkedin.com/in/ankitz007/',
+    label: 'LinkedIn',
   },
   {
     href: 'mailto:ankitkumarsingh11061999@gmail.com',
