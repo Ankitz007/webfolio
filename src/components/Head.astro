@@ -41,6 +41,12 @@ import Favicons from './Favicons.astro'
     title={SITE.title}
     href={new URL('rss.xml', Astro.site)}
   />
+  <!-- Devicon CSS for technology icons -->
+  <link
+    rel="stylesheet"
+    type="text/css"
+    href="https://cdn.jsdelivr.net/gh/devicons/devicon@latest/devicon.min.css"
+  />
 
   <Favicons />
   <ClientRouter />

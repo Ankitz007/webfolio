@@ -1,7 +1,7 @@
 import * as React from 'react'
 import { Slot as SlotPrimitive } from 'radix-ui'
 import { cva, type VariantProps } from 'class-variance-authority'
-
+import { getTechIconClass } from '@/lib/tech-icons'
 import { cn } from '@/lib/utils'
 
 const badgeVariants = cva(
@@ -25,22 +25,38 @@ const badgeVariants = cva(
   },
 )
 
+interface BadgeProps extends React.ComponentProps<'span'>, VariantProps<typeof badgeVariants> {
+  asChild?: boolean
+  showTechIcon?: boolean
+  techTag?: string
+}
+
 function Badge({
   className,
   variant,
   asChild = false,
+  showTechIcon = false,
+  techTag,
+  children,
   ...props
-}: React.ComponentProps<'span'> &
-  VariantProps<typeof badgeVariants> & { asChild?: boolean }) {
+}: BadgeProps) {
   const Comp = asChild ? SlotPrimitive.Root : 'span'
+
+  // Determine which text to use for tech icon lookup
+  const textForIcon = techTag || (typeof children === 'string' ? children : '')
+  const iconClass = showTechIcon && textForIcon ? getTechIconClass(textForIcon) : null
 
   return (
     <Comp
       data-slot="badge"
       className={cn(badgeVariants({ variant }), className)}
       {...props}
-    />
+    >
+      {showTechIcon && <i className={`${iconClass} text-sm`} />}
+      {children}
+    </Comp>
   )
 }
 
 export { Badge, badgeVariants }
+export type { BadgeProps }

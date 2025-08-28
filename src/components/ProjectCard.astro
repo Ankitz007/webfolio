@@ -23,13 +23,13 @@ const { project } = Astro.props
   >
     {
       project.data.image && (
-        <div class="w-full h-48 sm:max-w-3xs sm:shrink-0 sm:h-32">
+        <div class="h-48 w-full sm:h-32 sm:max-w-3xs sm:shrink-0">
           <Image
             src={project.data.image}
             alt={project.data.name}
             width={1200}
             height={630}
-            class="object-cover w-full h-full rounded-lg"
+            class="h-full w-full rounded-lg object-cover"
           />
         </div>
       )
@@ -60,7 +60,14 @@ const { project } = Astro.props
         project.data.tags && (
           <div class="flex flex-wrap gap-2">
             {project.data.tags.map((tag: string) => (
-              <Badge variant="secondary">{tag}</Badge>
+              <Badge
+                variant="secondary"
+                showTechIcon={true}
+                techTag={tag}
+                client:load
+              >
+                {tag}
+              </Badge>
             ))}
           </div>
         )
