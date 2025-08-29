@@ -34,10 +34,9 @@ const {
     navbar: 1,
     title: false,
     toolbar: {
+      reset: 1,
       rotateLeft: 1,
-      rotateRight: 1,
       zoomIn: 1,
-      reset: 0,
       prev: {
         show: 1,
         size: 'large',
@@ -47,14 +46,15 @@ const {
         size: 'large',
       },
       zoomOut: 1,
+      rotateRight: 1,
       flipHorizontal: 1,
-      flipVertical: 1,
+      flipVertical: 0,
     },
     container: 'image-viewer',
-    movable: false,
+    movable: true,
     zoomOnTouch: false, // We'll handle this manually for better control
     zoomOnWheel: false, // We'll handle this manually for better control
-    transition: true,
+    transition: false,
     zIndexInline: 300,
     filter: (image: HTMLImageElement) => {
       return (

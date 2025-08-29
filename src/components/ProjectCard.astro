@@ -14,7 +14,7 @@ const { project } = Astro.props
 ---
 
 <div
-  class="hover:bg-secondary/50 rounded-xl border p-4 transition-colors duration-300 ease-in-out"
+  class="group hover:bg-secondary/50 rounded-xl border p-4 transition-colors duration-300 ease-in-out"
 >
   <Link
     href={project.data.link}
@@ -29,7 +29,7 @@ const { project } = Astro.props
             alt={project.data.name}
             width={1200}
             height={630}
-            class="h-full w-full rounded-lg object-cover"
+            class="h-full w-full rounded-lg object-cover grayscale transition-all duration-300 ease-in-out group-hover:grayscale-0"
           />
         </div>
       )
