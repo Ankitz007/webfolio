@@ -1,0 +1,296 @@
+---
+import Viewer from 'viewerjs'
+
+interface Props {
+  selector: string
+  options?: Viewer.Options
+  asyncInsert?: boolean
+  tabFocus?: boolean
+}
+
+const {
+  selector,
+  options,
+  asyncInsert = false,
+  tabFocus = false,
+} = Astro.props as Props
+---
+
+<image-viewer
+  data-selector={selector}
+  data-options={JSON.stringify(options)}
+  data-async-insert={asyncInsert ? '' : undefined}
+  data-tab-focus={tabFocus ? '' : undefined}
+>
+</image-viewer>
+
+<script>
+  import Viewer from 'viewerjs'
+
+  // global default config
+  Viewer.setDefaults({
+    backdrop: true,
+    button: true,
+    navbar: 1,
+    title: false,
+    toolbar: {
+      rotateLeft: 1,
+      rotateRight: 1,
+      zoomIn: 1,
+      reset: 0,
+      prev: {
+        show: 1,
+        size: 'large',
+      },
+      next: {
+        show: 1,
+        size: 'large',
+      },
+      zoomOut: 1,
+      flipHorizontal: 1,
+      flipVertical: 1,
+    },
+    container: 'image-viewer',
+    movable: false,
+    zoomOnTouch: false, // We'll handle this manually for better control
+    zoomOnWheel: false, // We'll handle this manually for better control
+    transition: true,
+    zIndexInline: 300,
+    filter: (image: HTMLImageElement) => {
+      return (
+        !image.classList.contains('no-zoom') &&
+        image.parentNode?.nodeName !== 'A' &&
+        image.parentNode?.parentNode?.nodeName !== 'A'
+      )
+    },
+  })
+
+  export class ImageViewer extends HTMLElement {
+    #viewer: InstanceType<typeof Viewer> | null = null
+    #mutationObserver: MutationObserver | null = null
+    #lastViewedImage: HTMLImageElement | null = null
+    
+    // Touch gesture tracking
+    #initialPinchDistance: number = 0
+    #initialScale: number = 1
+
+    // Shared zoom logic
+    #applyZoom(newScale: number) {
+      const canvas = document.querySelector('.viewer-canvas')
+      const canvasImage = canvas?.querySelector('img')
+      if (!canvas || !canvasImage) return false
+      
+      // Clamp zoom level
+      const minZoom = 0.1
+      const maxZoom = 10
+      const clampedScale = Math.min(Math.max(newScale, minZoom), maxZoom)
+      
+      // Get current transform values and maintain translation (keep centered)
+      const transform = canvasImage.style.transform
+      const matrix = new DOMMatrix(transform)
+      const currentTranslateX = matrix.e
+      const currentTranslateY = matrix.f
+      
+      // Apply new transform
+      canvasImage.style.transform = `translate3d(${currentTranslateX}px, ${currentTranslateY}px, 0px) scale(${clampedScale})`
+      
+      // Update viewer's internal state
+      // @ts-expect-error (accessing private properties)
+      if (this.#viewer?.imageData) {
+        // @ts-expect-error (accessing private properties)
+        this.#viewer.imageData.ratio = clampedScale
+      }
+      
+      return true
+    }
+
+    // Mouse wheel zoom
+    #handleWheel = (event: WheelEvent) => {
+      if (!this.#viewer) return
+      
+      // Only prevent default if we're actually zooming an image
+      const canvas = document.querySelector('.viewer-canvas')
+      if (!canvas) return
+      
+      event.preventDefault()
+      
+      const transform = canvas.querySelector('img')?.style.transform || ''
+      const matrix = new DOMMatrix(transform)
+      const currentScale = matrix.a
+      
+      const zoomFactor = event.deltaY > 0 ? 0.98 : 1.02
+      const newScale = currentScale * zoomFactor
+      
+      this.#applyZoom(newScale)
+    }
+
+    // Touch gesture handling
+    #handleTouchStart = (event: TouchEvent) => {
+      if (event.touches.length !== 2) return
+      
+      // Only prevent default for pinch gestures on the image canvas
+      const canvas = document.querySelector('.viewer-canvas')
+      if (!canvas || !event.target || !canvas.contains(event.target as Node)) return
+      
+      event.preventDefault()
+      
+      const canvasImage = canvas.querySelector('img')
+      if (!canvasImage) return
+      
+      // Calculate initial pinch distance and scale
+      const touch1 = event.touches[0]
+      const touch2 = event.touches[1]
+      this.#initialPinchDistance = Math.hypot(
+        touch2.clientX - touch1.clientX,
+        touch2.clientY - touch1.clientY
+      )
+      
+      const transform = canvasImage.style.transform
+      const matrix = new DOMMatrix(transform)
+      this.#initialScale = matrix.a
+    }
+
+    #handleTouchMove = (event: TouchEvent) => {
+      if (event.touches.length !== 2 || this.#initialPinchDistance === 0) return
+      
+      // Only handle if touching the image canvas
+      const canvas = document.querySelector('.viewer-canvas')
+      if (!canvas || !event.target || !canvas.contains(event.target as Node)) return
+      
+      event.preventDefault()
+      
+      const touch1 = event.touches[0]
+      const touch2 = event.touches[1]
+      const currentDistance = Math.hypot(
+        touch2.clientX - touch1.clientX,
+        touch2.clientY - touch1.clientY
+      )
+      
+      const scaleChange = currentDistance / this.#initialPinchDistance
+      const newScale = this.#initialScale * scaleChange
+      
+      this.#applyZoom(newScale)
+    }
+
+    #handleTouchEnd = (event: TouchEvent) => {
+      if (event.touches.length < 2) {
+        this.#initialPinchDistance = 0
+        this.#initialScale = 1
+      }
+    }
+
+    // Event listener management
+    #addEventListeners() {
+      const viewerContainer = document.querySelector('.viewer-container')
+      if (!viewerContainer) return
+      
+      const options = { passive: false }
+      viewerContainer.addEventListener('wheel', this.#handleWheel as EventListener, options)
+      viewerContainer.addEventListener('touchstart', this.#handleTouchStart as EventListener, options)
+      viewerContainer.addEventListener('touchmove', this.#handleTouchMove as EventListener, options)
+      viewerContainer.addEventListener('touchend', this.#handleTouchEnd as EventListener, options)
+    }
+
+    #removeEventListeners() {
+      const viewerContainer = document.querySelector('.viewer-container')
+      if (!viewerContainer) return
+      
+      viewerContainer.removeEventListener('wheel', this.#handleWheel as EventListener)
+      viewerContainer.removeEventListener('touchstart', this.#handleTouchStart as EventListener)
+      viewerContainer.removeEventListener('touchmove', this.#handleTouchMove as EventListener)
+      viewerContainer.removeEventListener('touchend', this.#handleTouchEnd as EventListener)
+    }
+
+    connectedCallback() {
+      const selector = this.dataset.selector || 'img'
+      const container = document.querySelector(selector) as HTMLElement | null
+      if (!container) return
+
+      let userOptions: Viewer.Options = {}
+      try {
+        if (this.dataset.options) userOptions = JSON.parse(this.dataset.options)
+      } catch (err) {
+        console.error('[ImageViewer] Failed to parse options:', err)
+      }
+
+      const initOrUpdateViewer = () => {
+        if (this.#viewer) {
+          this.#viewer.update()
+          return
+        }
+
+        if (container.querySelector('img')) {
+          this.#viewer = new Viewer(container, {
+            ...userOptions,
+            ...(this.hasAttribute('data-tab-focus') && {
+              viewed: ({ detail }) => {
+                this.#lastViewedImage = detail.originalImage
+                this.#addEventListeners()
+              },
+              hidden: () => {
+                this.#removeEventListeners()
+                
+                if (this.#lastViewedImage) {
+                  const el = this.#lastViewedImage.parentNode
+                  if (el?.nodeName === 'FIGURE') {
+                    requestAnimationFrame(() => (el as HTMLElement)?.focus())
+                  }
+                  requestAnimationFrame(() => this.#lastViewedImage?.focus())
+                  this.#lastViewedImage = null
+                }
+              },
+            }),
+            // Add event handlers for non-tab-focus mode too
+            ...(!this.hasAttribute('data-tab-focus') && {
+              viewed: () => {
+                this.#addEventListeners()
+              },
+              hidden: () => {
+                this.#removeEventListeners()
+              },
+            }),
+          })
+
+          // https://github.com/fengyuanchen/viewerjs/issues/197
+          // @ts-expect-error (ignore)
+          this.#viewer.open = function () {
+            document.documentElement.style.overflow = 'hidden'
+          }
+          // @ts-expect-error (ignore)
+          this.#viewer.close = function () {
+            document.documentElement.style.overflow = ''
+          }
+        }
+      }
+
+      initOrUpdateViewer()
+
+      // watch for future DOM changes
+      if (this.hasAttribute('data-async-insert')) {
+        this.#mutationObserver = new MutationObserver(initOrUpdateViewer)
+        this.#mutationObserver.observe(container, {
+          childList: true,
+        })
+      }
+    }
+
+    disconnectedCallback() {
+      if (this.#mutationObserver) {
+        this.#mutationObserver.disconnect()
+        this.#mutationObserver = null
+      }
+
+      // Clean up event listeners
+      this.#removeEventListeners()
+
+      if (this.#viewer) {
+        this.#viewer.destroy()
+        this.#viewer = null
+      }
+    }
+  }
+
+  if (!customElements.get('image-viewer')) {
+    customElements.define('image-viewer', ImageViewer)
+  }
+</script>
