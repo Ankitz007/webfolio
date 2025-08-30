@@ -1,6 +1,6 @@
 ---
 import Breadcrumbs from '@/components/Breadcrumbs.astro'
-import ImageViewer from '@/components/ImageViewer.astro'
+import LightGallery from '@/components/LightGallery.astro'
 import Link from '@/components/Link.astro'
 import PageHead from '@/components/PageHead.astro'
 import { badgeVariants } from '@/components/ui/badge'
@@ -111,8 +111,9 @@ const authors = await parseAuthors([SITE.author])
       <Content />
     </div>
   </article>
-  <!-- Add ImageViewer for lightbox effect on blog images -->
-  <ImageViewer selector="article.prose" asyncInsert={true} tabFocus={true} />
+
+  <!-- Add LightGallery for lightbox effect on note images -->
+  <LightGallery selector="article.prose" asyncInsert={true} tabFocus={true} />
 
   <div class="border-border mt-12 border-t pt-8">
     <a

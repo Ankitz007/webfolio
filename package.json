@@ -31,6 +31,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "devicon": "^2.17.0",
+    "lightgallery": "^2.9.0-beta.1",
     "lucide-react": "^0.541.0",
     "patch-package": "^8.0.0",
     "radix-ui": "^1.4.3",
@@ -45,8 +46,7 @@
     "remark-math": "^6.0.0",
     "tailwind-merge": "^3.3.1",
     "tailwindcss": "^4.1.12",
-    "typescript": "^5.9.2",
-    "viewerjs": "^1.11.7"
+    "typescript": "^5.9.2"
   },
   "devDependencies": {
     "prettier": "^3.6.2",

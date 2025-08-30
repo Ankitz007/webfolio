@@ -1,6 +1,6 @@
 ---
 import Breadcrumbs from '@/components/Breadcrumbs.astro'
-import ImageViewer from '@/components/ImageViewer.astro'
+import LightGallery from '@/components/LightGallery.astro'
 import Link from '@/components/Link.astro'
 import PostHead from '@/components/PostHead.astro'
 import PostNavigation from '@/components/PostNavigation.astro'
@@ -230,8 +230,8 @@ const tocSections = await getTOCSections(currentPostId)
       <Content />
     </article>
 
-    <!-- Add ImageViewer for lightbox effect on blog images -->
-    <ImageViewer selector="article.prose" asyncInsert={true} tabFocus={true} />
+    <!-- Add LightGallery for lightbox effect on blog images -->
+    <LightGallery selector="article.prose" asyncInsert={true} tabFocus={true} />
 
     {
       (hasChildPosts || isCurrentSubpost) && (
