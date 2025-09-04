@@ -53,3 +53,9 @@ export const ICON_MAP: IconMap = {
   Email: 'lucide:mail',
   RSS: 'lucide:rss',
 }
+
+export const EXTERNAL_CSS = {
+  KATEX: 'https://cdn.jsdelivr.net/npm/katex@0.16.21/dist/katex.min.css',
+  DEVICONS:
+    'https://cdn.jsdelivr.net/gh/devicons/devicon@latest/devicon.min.css',
+} as const

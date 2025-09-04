@@ -12,6 +12,7 @@ import { badgeVariants } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import Layout from '@/layouts/Layout.astro'
 import {
+  containsMathExpressions,
   getAdjacentPosts,
   getAllPostsAndSubposts,
   getCombinedReadingTime,
@@ -57,9 +58,12 @@ const combinedReadingTime =
     : null
 
 const tocSections = await getTOCSections(currentPostId)
+
+// Detect if the post content contains mathematical expressions
+const needsKatex = containsMathExpressions(post.body ?? '')
 ---
 
-<Layout>
+<Layout needsKatex={needsKatex}>
   <PostHead slot="head" post={post} />
   {
     (hasChildPosts || isCurrentSubpost) && (

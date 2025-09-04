@@ -346,3 +346,27 @@ export async function getSortedTagsForNotes(): Promise<
       return countDiff !== 0 ? countDiff : a.tag.localeCompare(b.tag)
     })
 }
+
+/**
+ * Detects if content contains mathematical expressions that require KaTeX
+ * @param content Raw markdown/MDX content string
+ * @returns true if math expressions are found
+ */
+export function containsMathExpressions(content: string): boolean {
+  // Check for inline math: $...$ (but not $$...$$)
+  const inlineMathRegex = /(?<!\$)\$(?!\$)[^$\n]+?\$(?!\$)/g
+
+  // Check for display math: $$...$$ (can span multiple lines)
+  const displayMathRegex = /\$\$[\s\S]*?\$\$/g
+
+  // Check for LaTeX-style delimiters: \(...\) for inline, \[...\] for display
+  const latexInlineRegex = /\\\([^)]*\\\)/g
+  const latexDisplayRegex = /\\\[[\s\S]*?\\\]/g
+
+  return (
+    inlineMathRegex.test(content) ||
+    displayMathRegex.test(content) ||
+    latexInlineRegex.test(content) ||
+    latexDisplayRegex.test(content)
+  )
+}

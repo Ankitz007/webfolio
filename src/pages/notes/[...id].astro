@@ -6,7 +6,11 @@ import PageHead from '@/components/PageHead.astro'
 import { badgeVariants } from '@/components/ui/badge'
 import { SITE } from '@/consts'
 import Layout from '@/layouts/Layout.astro'
-import { getAllNotes, parseAuthors } from '@/lib/data-utils'
+import {
+  containsMathExpressions,
+  getAllNotes,
+  parseAuthors,
+} from '@/lib/data-utils'
 import { formatDate } from '@/lib/utils'
 import { Icon } from 'astro-icon/components'
 import { Image } from 'astro:assets'
@@ -24,9 +28,12 @@ const note = Astro.props
 const { Content } = await render(note)
 const { data } = note
 const authors = await parseAuthors([SITE.author])
+
+// Detect if the note content contains mathematical expressions
+const needsKatex = containsMathExpressions(note.body ?? '')
 ---
 
-<Layout class="max-w-3xl">
+<Layout class="max-w-3xl" needsKatex={needsKatex}>
   <PageHead
     slot="head"
     title={`${data.title} - Notes`}

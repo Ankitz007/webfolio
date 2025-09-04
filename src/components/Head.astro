@@ -1,7 +1,14 @@
 ---
-import { SITE } from '@/consts'
+import { EXTERNAL_CSS, SITE } from '@/consts'
 import { ClientRouter } from 'astro:transitions'
 import Favicons from './Favicons.astro'
+
+interface Props {
+  needsKatex?: boolean
+  needsDevicons?: boolean
+}
+
+const { needsKatex = false, needsDevicons = false } = Astro.props
 ---
 
 <head>
@@ -41,12 +48,20 @@ import Favicons from './Favicons.astro'
     title={SITE.title}
     href={new URL('rss.xml', Astro.site)}
   />
-  <!-- Devicon CSS for technology icons -->
-  <link
-    rel="stylesheet"
-    type="text/css"
-    href="https://cdn.jsdelivr.net/gh/devicons/devicon@latest/devicon.min.css"
-  />
+
+  <!-- Devicon CSS - conditionally loaded for technology icons -->
+  {
+    needsDevicons && (
+      <link rel="stylesheet" type="text/css" href={EXTERNAL_CSS.DEVICONS} />
+    )
+  }
+
+  <!-- KaTeX CSS - conditionally loaded when math content is detected -->
+  {
+    needsKatex && (
+      <link rel="stylesheet" type="text/css" href={EXTERNAL_CSS.KATEX} />
+    )
+  }
 
   <Favicons />
   <ClientRouter />
