@@ -441,3 +441,29 @@ I'll add this little subgenre of variant called "example-based" callouts that ha
     Therefore, the sequence of arithmetic means converges to $L$.
   </Callout>
 </Callout>
+
+## Custom callouts
+
+You can even have a custom callout with a custom title and no variant specified:
+
+```mdx showLineNumbers=false 'variant' 'customLabel'
+<Callout variant="custom" customLabel="Fun Fact" title="Custom callout">
+  This is a custom callout. Have fun!
+</Callout>
+```
+
+<Callout variant="custom" customLabel="Fun Fact" title="Custom callout">
+  This is a custom callout. Have fun!
+</Callout>
+
+The following is a custom callout without a title.
+
+```mdx showLineNumbers=false
+<Callout variant="custom" customLabel="Did you know?">
+  This is a custom callout without a title.
+</Callout>
+```
+
+<Callout variant="custom" customLabel="Did you know?">
+  This is a custom callout without a title.
+</Callout>
