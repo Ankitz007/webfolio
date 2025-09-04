@@ -353,6 +353,11 @@ export async function getSortedTagsForNotes(): Promise<
  * @returns true if math expressions are found
  */
 export function containsMathExpressions(content: string): boolean {
+  // Remove fenced code blocks (```...```) and inline code (`...`) first
+  // to avoid false positives from code samples that contain dollar signs
+  const withoutFenced = content.replace(/```[\s\S]*?```/g, '')
+  const withoutInline = withoutFenced.replace(/`[^`]*`/g, '')
+
   // Check for inline math: $...$ (but not $$...$$)
   const inlineMathRegex = /(?<!\$)\$(?!\$)[^$\n]+?\$(?!\$)/g
 
@@ -364,9 +369,9 @@ export function containsMathExpressions(content: string): boolean {
   const latexDisplayRegex = /\\\[[\s\S]*?\\\]/g
 
   return (
-    inlineMathRegex.test(content) ||
-    displayMathRegex.test(content) ||
-    latexInlineRegex.test(content) ||
-    latexDisplayRegex.test(content)
+    inlineMathRegex.test(withoutInline) ||
+    displayMathRegex.test(withoutInline) ||
+    latexInlineRegex.test(withoutInline) ||
+    latexDisplayRegex.test(withoutInline)
   )
 }
