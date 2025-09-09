@@ -231,11 +231,14 @@ const needsKatex = containsMathExpressions(post.body ?? '')
     }
 
     <article class="prose col-start-2 max-w-none">
+      <!-- Add LightGallery for lightbox effect on blog images -->
+      <LightGallery
+        selector="article.prose"
+        asyncInsert={true}
+        tabFocus={true}
+      />
       <Content />
     </article>
-
-    <!-- Add LightGallery for lightbox effect on blog images -->
-    <LightGallery selector="article.prose" asyncInsert={true} tabFocus={true} />
 
     {
       (hasChildPosts || isCurrentSubpost) && (

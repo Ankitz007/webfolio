@@ -115,12 +115,15 @@ const needsKatex = containsMathExpressions(note.body ?? '')
 
   <article class="prose prose-lg dark:prose-invert max-w-none">
     <div class="note-content">
+      <!-- Add LightGallery for lightbox effect on note images -->
+      <LightGallery
+        selector="article.prose"
+        asyncInsert={true}
+        tabFocus={true}
+      />
       <Content />
     </div>
   </article>
-
-  <!-- Add LightGallery for lightbox effect on note images -->
-  <LightGallery selector="article.prose" asyncInsert={true} tabFocus={true} />
 
   <div class="border-border mt-12 border-t pt-8">
     <a

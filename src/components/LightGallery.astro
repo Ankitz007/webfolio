@@ -55,8 +55,38 @@ const {
         const images = container.querySelectorAll('img')
         if (images.length === 0) return
 
-        // Prepare images for lightgallery by wrapping them if needed
+        // First pass: wrap images with title attributes in figure elements
         images.forEach((img: HTMLImageElement) => {
+          // If image has a title and is not already in a figure, wrap it
+          if (img.title && img.parentNode?.nodeName !== 'FIGURE') {
+            const figure = document.createElement('figure')
+            const figcaption = document.createElement('figcaption')
+
+            // Style the figure and caption
+            figure.className = 'my-6'
+            figcaption.className = 'text-center text-sm text-muted-foreground'
+            figcaption.textContent = img.title
+
+            // Insert figure before the image
+            img.parentNode?.insertBefore(figure, img)
+
+            // Move image into figure and add caption
+            figure.appendChild(img)
+            figure.appendChild(figcaption)
+          }
+        })
+
+        // Second pass: prepare images for lightgallery by wrapping them if needed
+        // Re-query images since DOM structure may have changed
+        const updatedImages = container.querySelectorAll('img')
+        updatedImages.forEach((img: HTMLImageElement) => {
+          // Ensure all images have rounded corners
+          try {
+            img.classList.add('rounded-lg')
+          } catch (e) {
+            // ignore if unable to add class
+          }
+
           // Skip images that should not be in the gallery
           if (
             img.classList.contains('no-zoom') ||
@@ -75,6 +105,31 @@ const {
             // Add size data if available
             if (img.naturalWidth && img.naturalHeight) {
               link.dataset.lgSize = `${img.naturalWidth}-${img.naturalHeight}`
+            }
+
+            // Check if image has a caption and add it to the link
+            let caption = ''
+
+            // First, check if the image has a title attribute (from Markdown syntax)
+            if (img.title) {
+              caption = img.title.trim()
+            }
+            // Then, check if the image has a data-caption attribute
+            else if (img.dataset.caption) {
+              caption = img.dataset.caption
+            }
+            // If the image is inside a figure, look for figcaption
+            else if (img.parentNode?.nodeName === 'FIGURE') {
+              const figcaption = img.parentNode.querySelector('figcaption')
+              if (figcaption) {
+                caption = figcaption.textContent?.trim() || ''
+              }
+            }
+
+            // Add caption to the link if found
+            if (caption) {
+              link.dataset.subHtml = `<div class="lg-sub-html"><p>${caption}</p></div>`
+              img.classList.add('mb-2')
             }
 
             // Wrap the image
@@ -111,7 +166,8 @@ const {
           },
           controls: true,
           selector: 'a[data-src]', // Target only our wrapped images
-          licenseKey: '0000-0000-000-0000', // Use trial key for now
+          licenseKey:
+            import.meta.env.LIGHTGALLERY_LICENSE || '0000-0000-000-000-0000',
           backdropDuration: 300,
           zoom: true,
           scale: 1,
