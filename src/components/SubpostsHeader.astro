@@ -196,11 +196,17 @@ const currentSubpostDetails = isCurrentSubpost
     scrollArea: HTMLElement | null = null
     detailsElement: HTMLDetailsElement | null = null
     headerScrollArea: HTMLElement | null = null
+    resizeHandler: ((this: Window, ev: UIEvent) => any) | null = null
+    detailsToggleHandler:
+      | ((this: HTMLDetailsElement, ev: Event) => any)
+      | null = null
 
     reset() {
       this.scrollArea = null
       this.detailsElement = null
       this.headerScrollArea = null
+      this.resizeHandler = null
+      this.detailsToggleHandler = null
     }
   }
 
@@ -217,6 +223,30 @@ const currentSubpostDetails = isCurrentSubpost
 
       state.headerScrollArea.classList.toggle('mask-t-from-80%', !isAtTop)
       state.headerScrollArea.classList.toggle('mask-b-from-80%', !isAtBottom)
+    }
+  }
+
+  /* Measure the mobile subposts container and return its height in pixels */
+  function subpostBarHeight(): number {
+    const mobileSubpostsContainer = document.getElementById(
+      'mobile-subposts-container',
+    )
+    if (mobileSubpostsContainer) {
+      const subpostsHeight =
+        mobileSubpostsContainer.getBoundingClientRect().height
+      return subpostsHeight
+    }
+    return 0
+  }
+
+  /* Update a CSS variable on :root with the measured height so CSS can use it */
+  function updateMobileSubpostsHeight() {
+    const height = subpostBarHeight() - 8 // account for some extra margin/padding
+    const root = document.documentElement
+    if (height > 0) {
+      root.style.setProperty('--mobile-subposts-height', `${height}px`)
+    } else {
+      root.style.removeProperty('--mobile-subposts-height')
     }
   }
 
@@ -268,15 +298,25 @@ const currentSubpostDetails = isCurrentSubpost
       }
 
       if (state.detailsElement) {
-        state.detailsElement.addEventListener('toggle', () => {
+        const detailsToggleHandler = () => {
+          // update measured height when the details toggles (open/close)
+          updateMobileSubpostsHeight()
           if (state.detailsElement?.open) {
             requestAnimationFrame(() => {
               SubpostsScroll.toActive()
               setTimeout(SubpostsHeaderScrollMask.update, 100)
             })
           }
-        })
+        }
+        state.detailsToggleHandler = detailsToggleHandler
+        state.detailsElement.addEventListener('toggle', detailsToggleHandler)
       }
+
+      // measure initially and whenever the viewport resizes
+      updateMobileSubpostsHeight()
+      const boundResize = () => updateMobileSubpostsHeight()
+      state.resizeHandler = boundResize
+      window.addEventListener('resize', boundResize)
 
       links.forEach((link) => {
         link.addEventListener('click', () => {
@@ -290,6 +330,9 @@ const currentSubpostDetails = isCurrentSubpost
     static init() {
       state.reset()
       SubpostsScroll.setupInteraction()
+
+      // add a sentinel class so global CSS can scope the mobile tweak
+      document.documentElement.classList.add('has-mobile-subposts')
     }
 
     static cleanup() {
@@ -299,6 +342,20 @@ const currentSubpostDetails = isCurrentSubpost
           SubpostsHeaderScrollMask.update,
         )
       }
+      if (state.detailsElement && state.detailsToggleHandler) {
+        state.detailsElement.removeEventListener(
+          'toggle',
+          state.detailsToggleHandler,
+        )
+      }
+      if (state.resizeHandler) {
+        window.removeEventListener('resize', state.resizeHandler)
+      }
+
+      // remove the CSS variable to fall back to the default when this component unmounts
+      document.documentElement.style.removeProperty('--mobile-subposts-height')
+      // remove the sentinel class added during init
+      document.documentElement.classList.remove('has-mobile-subposts')
       state.reset()
     }
   }

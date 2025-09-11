@@ -97,3 +97,21 @@
     @apply border-border outline-ring/50 tracking-tight;
   }
 }
+
+/* When the mobile subposts component is present we add a class on <html>
+   so the site-wide stylesheet can apply a small mobile-only scroll-margin
+   tweak for fragment (anchor) navigation. The component script will add
+   and remove the `has-mobile-subposts` class at runtime. */
+@media (max-width: 80rem) {
+  :root.has-mobile-subposts
+    .prose
+    :where(h1, h2, h3, h4, h5, h6):not(
+      :where([class~='not-prose'], [class~='not-prose'] *)
+    ) {
+    /* base scroll-margin-top used elsewhere + extra space for subposts bar */
+    /* use a runtime-updated CSS variable so we can compute the mobile subposts height instead of hardcoding 3.5rem */
+    scroll-margin-top: calc(
+      var(--spacing) * 32 + var(--mobile-subposts-height)
+    );
+  }
+}

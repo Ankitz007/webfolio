@@ -70,12 +70,22 @@
     }
 
     :where(ul):not(:where([class~='not-prose'], [class~='not-prose'] *)) {
-      @apply marker:text-foreground/30 my-5 ml-6 list-disc [&>li]:mt-2;
+      @apply marker:text-foreground/30 my-5 ml-6 list-disc [&>li]:mt-0;
     }
 
     :where(ol):not(:where([class~='not-prose'], [class~='not-prose'] *)) {
-      @apply marker:text-foreground/30 my-5 ml-6 list-decimal [&>li]:mt-2;
+      @apply marker:text-foreground/30 my-5 ml-6 list-decimal [&>li]:mt-0;
       @apply [&[type='A']]:list-[upper-alpha] [&[type='I']]:list-[upper-roman] [&[type='a']]:list-[lower-alpha] [&[type='i']]:list-[lower-roman];
+    }
+
+    /* If a paragraph is immediately followed by a list, give the paragraph a small bottom margin */
+    :where(p):not(:where([class~='not-prose'], [class~='not-prose'] *)):has(+ :where(ul, ol)) {
+      @apply mb-2;
+    }
+
+    /* If a list immediately follows a paragraph, reduce the list's top margin */
+    :where(p):not(:where([class~='not-prose'], [class~='not-prose'] *)) + :where(ul, ol):not(:where([class~='not-prose'], [class~='not-prose'] *)) {
+      @apply mt-2;
     }
 
     :where(li):not(:where([class~='not-prose'], [class~='not-prose'] *)) {
