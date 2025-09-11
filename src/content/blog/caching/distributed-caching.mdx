@@ -1,0 +1,131 @@
+---
+title: 'Distributed Caching'
+description: 'Learn about the challenges and strategies for implementing distributed caching solutions.'
+date: 2025-08-28
+tags: ['System Design', 'Caching']
+authors: ['ankitz007']
+order: 2
+---
+
+import Callout from '@/components/Callout.astro'
+
+Caching is used to temporarily store copies of **frequently accessed data** in a fast storage layer (often **RAM**) to **reduce latency** and offload work from the primary data store.
+
+When your dataset is small or your traffic is low, a single-node cache (or an in-process cache) is often sufficient.
+
+But as the system gets bigger, the cache size also gets bigger and a single-node cache often falls short when **scaling to handle millions** of users and **massive datasets**.
+
+In such scenarios, we need to distribute the cache data across multiple servers. This is where **distributed caching** comes into play.
+
+In this subpost, we will explore distributed caching in detail.
+
+## What is Distributed Caching?
+
+Distributed caching is a technique where cache data is stored across multiple nodes (servers) instead of being confined to a single machine.
+
+This allows the cache to scale horizontally and accommodate the needs of large-scale applications.
+
+![Distributed Caching](https://res.cloudinary.com/ankitz007/image/upload/v1757605114/caching/distributed-cache_cy4oc2.svg "Distributed Caching")
+
+<Callout variant="custom" customLabel="Good To Know">
+    When designing a caching strategy for a distributed system, one of the critical decisions you need to make is **where to host the cache**.
+
+    1. **Dedicated Cache Servers**: These are standalone servers specifically set up to run caching software like Redis or Memcached. They can be optimized for performance and scalability.
+    2. **Co-located Cache**: In this approach, cache instances are run on the same servers as your application. This can reduce latency since the cache is local to the application, but it may compete for resources with the application itself.
+</Callout>
+
+## Why Use Distributed Caching?
+
+1. **Scalability**: As the application grows, the cache can be scaled horizontally by adding more nodes to the cache cluster. This allows the system to handle increased load and larger datasets.
+
+2. **Fault Tolerance**: If one cache node fails, the system can continue to operate using the remaining nodes. This improves the overall reliability of the caching system.
+
+3. **Load Balancing**: Distributing cache data across multiple nodes helps balance the load, preventing any single node from becoming a bottleneck.
+
+<Callout variant="tip">
+    If you expect your dataset or traffic to grow, choose a distributed cache early. Migrating from a single node to distributed caching later can be more complex than starting with a small cluster.
+</Callout>
+
+## Components of Distributed Caching
+
+A distributed cache system typically consists of the following components:
+
+- **Cache Nodes**: These are the individual servers where the cache data is stored.
+
+- **Client Library/Cache Client**: Applications use a client library to talk to the distributed cache. This library handles the logic of connecting to cache nodes, distributing data, and retrieving cached data.
+
+- **Consistent Hashing**: This method spreads data evenly across cache nodes. It ensures that adding or removing nodes has minimal impact on the system.
+
+- **Replication**: To make the system more reliable, some distributed caches replicate data across multiple nodes. If one node goes down, the data is still available on another.
+
+- **Sharding**: Data is split into shards, and each shard is stored on a different cache node. It helps distribute the data evenly and allows the cache to scale horizontally.
+
+- **Eviction Policies**: Caches implement eviction policies like **LRU**, **LFU**, or **TTL** to get rid of old or less-used data and make space for new data.
+
+- **Coordination and Synchronization**: Coordination mechanisms like **distributed locks** or **consensus protocols** ensure that cache nodes remain synchronized, especially when multiple nodes try to change the same data at the same time.
+
+## How Distributed Caching Works?
+
+1. **Data Distribution**: When data is cached, the client library typically hashes the key associated with the data to determine which cache node will store it.
+
+2. **Data Replication**: For reliability, the cache system replicates the cached data across multiple nodes. So, if one node, say A, stores the data, it might also be copied to another node, like B, as a backup.
+
+3. **Data Retrieval**: To get data from the cache, application provides the key to the client library. The client library uses this key to find and query the node which has the data. If the data is present (a cache hit), it’s returned to the application. If not (a cache miss), the data is fetched from the primary data store (e.g., a database), and it can be cached for future use.
+
+4. **Cache Invalidation**: To keep the cache data in sync with the primary data source, it needs to be invalidated or updated periodically. Cache systems implement strategies like time-based expiration or event-based expiration for cache invalidation.
+
+5. **Cache Eviction**: Since caches have limited space, they need an eviction policy to make room for new data. We will discuss common eviction policies in the next subpost.
+
+## Challenges in Distributed Caching
+
+- **Data Consistency**: Ensuring that all cache nodes have consistent data can be challenging, especially in a write-heavy application.
+
+- **Cache Invalidation**: Deciding when to invalidate or update the cache can be complex, particularly when dealing with multiple cache nodes.
+
+- **Network Partitioning**: In a distributed system, network partitions can occur, leading to situations where cache nodes are unable to communicate with each other.
+
+- **Scalability and Load Balancing**: As the system scales, ensuring that the cache is evenly balanced across nodes without any one node becoming a bottleneck requires sophisticated load balancing strategies.
+
+- **Latency**: While caching is meant to reduce latency, the overhead of communicating with multiple nodes can introduce delays, especially if the cache nodes are geographically distributed.
+
+<Callout variant="important">
+    **Coordination** is often the hidden complexity in distributed caches. Prefer simple, well-tested primitives (e.g., Redis primitives or managed services) over custom consensus logic unless absolutely required.
+</Callout>
+
+## Best Practices for Implementing Distributed Caching
+
+To get the most out of your distributed caching system, consider the following best practices:
+
+- **Cache Judiciously**: Not all data benefits from caching. Focus on frequently accessed, relatively static data.
+
+- **Set Appropriate TTLs**: Use Time-To-Live (TTL) values to automatically expire cached data and reduce staleness.
+
+- **Implement Cache-Aside Pattern**: Load data into the cache only when it's requested, to avoid unnecessary caching.
+
+- **Monitor and Tune**: Regularly monitor cache hit rates, memory usage, and network traffic to optimize performance.
+
+- **Plan for Failure**: Design your system to gracefully handle cache node failures without significant impact on the application.
+
+- **Implement Cache Warming**: Develop strategies to pre-populate critical data in the cache to avoid cold starts.
+
+## Popular Distributed Caching Solutions
+
+1. :link[Redis]{id="redis/redis"}: An in-memory data structure store, used as a database, cache, and message broker. It supports various data structures and offers high performance.
+
+2. :link[Memcached]{id="memcached/memcached"}: A high-performance, distributed memory object caching system, primarily used to speed up dynamic web applications by alleviating database load.
+
+3. :link[Apache Ignite]{id="apache/ignite"}: An in-memory computing platform that includes a distributed cache, providing high-speed access to data and supporting SQL queries.
+
+4. :link[Hazelcast]{id="hazelcast/hazelcast"}: An in-memory data grid that provides distributed caching, data partitioning, and high availability.
+
+5. :link[Amazon ElastiCache]{id="https://aws.amazon.com/elasticache/"}: A fully managed caching service by AWS, supporting Redis and Memcached, making it easy to deploy and scale caching solutions in the cloud.
+
+<Callout variant="tip">
+    **Start small**, **measure**, and **iterate**. Caching is useful but easy to get wrong. Use **managed services** when they fit your budget to avoid operational surprises.
+</Callout>
+
+## Conclusion
+
+Distributed caching is a powerful technique for improving application performance and scalability. By understanding the key concepts, challenges, and best practices outlined in this post, you can effectively implement a distributed caching solution that meets your application's needs. 
+
+Whether you choose a popular caching solution like Redis, Memcached, or Amazon ElastiCache, the right caching strategy can significantly enhance your application's responsiveness and user experience.

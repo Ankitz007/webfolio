@@ -1,7 +1,7 @@
 ---
 title: 'The Quickselect Algorithm'
 description: 'Learn how to implement the Quickselect algorithm in Python for efficient selection of the k-th smallest element.'
-date: 2025-05-19 13:30:00 +0530
+date: 2025-05-30 13:30:00 +0530
 tags: ['Programming', 'Algorithms', 'Divide & Conquer']
 image: 'https://res.cloudinary.com/ankitz007/image/upload/v1748766309/programming/algorithms/quickselect_zroxru.webp'
 authors: ['ankitz007']
@@ -12,7 +12,7 @@ import Callout from '@/components/Callout.astro'
 When you need to find the *k-th smallest element* in an unsorted array, sorting the entire array is unnecessary and inefficient. **Quickselect**, a selection algorithm developed by Tony Hoare, is an optimal choice for such tasks.
 
 <Callout title="About Quickselect" variant="remark">
-**Tony Hoare**, the inventor of Quicksort, also created Quickselect to efficiently find the k-th smallest element without fully sorting the array.
+    **Tony Hoare**, the inventor of Quicksort, also created Quickselect to efficiently find the k-th smallest element without fully sorting the array.
 </Callout>
 
 Quickselect is based on the **partitioning logic** of Quicksort but only processes one half of the array, making it more efficient for selection problems. In this post, we’ll explore the algorithm and compare two partitioning strategies it can use: **Lomuto** and **Hoare**.

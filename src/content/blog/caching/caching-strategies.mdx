@@ -1,0 +1,132 @@
+---
+title: 'Caching Strategies'
+description: 'Learn about different caching strategies and their use cases.'
+date: 2025-08-28
+tags: ['System Design', 'Caching']
+authors: ['ankitz007']
+order: 1
+---
+
+import Callout from '@/components/Callout.astro'
+
+There are several caching strategies, depending on what a system needs - whether the focus is on optimizing for read-heavy workloads, write-heavy operations, or ensuring data consistency.
+
+In this article, we'll cover the 5 most common caching strategies that frequently come up in system design discussions and widely used in real-world applications.
+
+## 1. Cache Aside
+
+Cache Aside, also known as "Lazy Loading", is a strategy where the application code handles the interaction between the cache and the database. The data is loaded into the cache only when needed.
+
+The application first checks the cache for data. If the data exists in cache - **a cache hit**, it’s returned to the application.
+
+If the data isn't found in cache - **a cache miss**, the application retrieves it from the database (or the primary data store), then loads it into the cache for subsequent requests.
+
+![Cache Aside](https://res.cloudinary.com/ankitz007/image/upload/v1757298753/caching/cache-aside_b30lwk.svg)
+
+The cache acts as a `sidecar` to the database, and it's the responsibility of the application to manage when and how data is written to the cache.
+
+To avoid stale data, we can set a time-to-live (TTL) for cached data. Once the TTL expires, the data is automatically removed from the cache.
+
+<Callout variant="tip" title="When to use Cache Aside?">
+  It’s ideal for **read-heavy workloads** where data is frequently read but infrequently updated, such as:
+  - **Social media feeds**: A user's profile information or a viral tweet is read by millions but only updated by one.
+  - **E-commerce product pages**: Product details are viewed thousands of times a day but are only updated occasionally by a store administrator.
+</Callout>
+
+The cache-aside strategy provides better control over the caching process, as the application can decide when and how to update the cache. However, it also adds complexity to the application code, as the application must handle cache misses and data retrieval logic.
+
+## 2. Read Through
+
+In the Read Through strategy, the cache acts as an intermediary between the application and the database. When the application requests data, it first looks in the cache.
+
+If data is available (cache hit), it’s returned to the application.
+
+If the data is not available (cache miss), the cache itself is responsible for fetching the data from the database, storing it, and returning it to the application.
+
+![Read Through](https://res.cloudinary.com/ankitz007/image/upload/v1757301159/caching/read-through_bwpru7.svg)
+
+This approach simplifies application logic because the application does not need to handle the logic for fetching and updating the cache.
+
+The cache itself handles both reading from the database and storing the requested data automatically. This minimizes unnecessary data in the cache and ensures that frequently accessed data is readily available.
+
+For cache hits, Read Through provides low-latency data access.
+
+But for cache misses, there is a potential delay while the cache queries the database and stores the data. This can result in higher latency during initial reads.
+
+To prevent the cache from serving stale data, a time-to-live (TTL) can be added to cached entries. TTL automatically expires the data after a specified duration, allowing it to be reloaded from the database when needed.
+
+<Callout variant="tip" title="When to use Read Through?">
+    This is useful for systems where you want to **simplify application logic** and don't want the application to handle cache-miss logic.
+    - **Real-time analytics dashboards**: A dashboard might request a data point; if the data is not in the cache, the cache system handles retrieving it from the data source.
+    - **Content delivery networks (CDNs)**: A user requests an image from a CDN. If the image isn't on the nearest server, the CDN itself fetches it from the origin server and serves it, caching it for the next request.
+</Callout>
+
+## 3. Write Through
+
+In the Write Through strategy, every write operation is executed on both the cache and the database at the same time.
+
+This is a synchronous process, meaning both the cache and the database are updated as part of the same operation, ensuring that there is no delay in data propagation.
+
+When the application writes data, it sends the write request to the cache. The cache then writes the data to both itself and the database before confirming the write operation to the application.
+
+![Write Through](https://res.cloudinary.com/ankitz007/image/upload/v1757301160/caching/write-through_dgxhtv.svg)
+
+This approach ensures that the cache and the database remain synchronized and the read requests from the cache will always return the latest data, avoiding the risk of serving stale data.
+
+The biggest advantage of Write Through is that it ensures strong data consistency between the cache and the database.
+
+Although, write-through minimizes the risk of data loss, since every write operation must be done twice before returning success to the client, this scheme has the disadvantage of higher latency for write operations.
+
+<Callout variant="tip" title="When to use Write Through?">
+  This strategy prioritizes **strong consistency** and **data integrity**. It’s used when you cannot afford to have stale data, even for a moment.
+    - **Banking systems**: When a user makes a transaction, the account balance in both the cache and the database must be updated simultaneously to prevent overdrafts.
+    - **Product inventory management**: To prevent overselling, the inventory count must be immediately updated in both the cache and the database when a product is purchased.
+</Callout>
+
+## 4. Write Around
+
+The application writes data directly to the database, completely bypassing the cache. The data is only loaded into the cache on a subsequent read request (often in combination with a Cache-Aside or Read-Through strategy).
+
+![Write Around](https://res.cloudinary.com/ankitz007/image/upload/v1757301159/caching/write-around_pqzy7a.svg)
+
+This approach ensures that only frequently accessed data resides in the cache, preventing it from being polluted by data that may not be accessed again soon.
+
+It keeps the cache clean by avoiding unnecessary data that might not be requested after being written.
+
+Writes are relatively faster because they only target the database and don’t incur the overhead of writing to the cache.
+
+However, the downside is that the cache may serve stale data until the next read occurs. This can be mitigated by implementing a cache invalidation strategy to remove outdated entries.
+
+<Callout variant="tip" title="When to use Write Around?">
+  This strategy is used when data is **written once but rarely read** later. It prevents the cache from being filled with "write-only" data, which would evict more useful, frequently-read data.
+    - **Log files or event streams**: Logs are written to a database for record-keeping but are rarely read unless for a specific debugging scenario.
+    - **Batch processing results**: The result of a large batch job is written to a data warehouse but is only accessed by analytical tools for reporting, not by the main application.
+</Callout>
+
+## 5. Write Back
+
+In the Write Back strategy, data is first written to the cache and then asynchronously written to the database at a later time.
+
+This strategy focuses on minimizing write latency by deferring database writes.
+
+This deferred writing means that the cache acts as the primary storage during write operations, while the database is updated periodically in the background.
+
+![Write Back](https://res.cloudinary.com/ankitz007/image/upload/v1757301160/caching/write-back_t3ov2n.svg)
+
+The key advantage of Write Back is that it significantly reduces write latency, as writes are completed quickly in the cache, and the database updates are delayed or batched.
+
+However, with this approach, there is a risk of data loss if the cache fails before the data has been written to the database.
+
+This can be mitigated by using persistent caching solutions like Redis with AOF (Append Only File), which logs every write operation to disk, ensuring data durability even if the cache crashes.
+
+Write Back doesn't require invalidation of cache entries, as the cache itself is the source of truth during the write process.
+
+<Callout variant="tip" title="When to use Write Back?">
+  This is the best strategy for **write-heavy workloads** because it significantly reduces write latency.
+    - **IoT systems**: Sensors generating a high volume of data (e.g., temperature readings) can write to the cache quickly. The cache then batches these updates and writes them to the database, reducing database load.
+    - **In-app user comments/likes**: When a user likes or comments on a post, the update is written to the cache for immediate display, and the database is updated asynchronously. This provides a fast user experience while offloading the database.
+</Callout>
+
+## Conclusion
+
+In conclusion, choosing the right caching strategy is crucial for optimizing application performance and ensuring data consistency. Each strategy has its own strengths and weaknesses, making it suitable for different use cases. By understanding the specific requirements of your application and the behavior of your data, you can select the most appropriate caching strategy to enhance user experience and system efficiency.

@@ -1,0 +1,288 @@
+---
+title: 'Cache Eviction Strategies'
+description: 'Learn about various cache eviction strategies and their trade-offs.'
+date: 2025-08-28
+tags: ['System Design', 'Caching']
+authors: ['ankitz007']
+order: 3
+---
+
+import Callout from '@/components/Callout.astro'
+
+When it comes to caching, one of the biggest challenges is deciding what to keep in the cache and what to evict when space runs out. After all, cache memory is limited - **you can’t store everything!**
+
+So, how do you decide which items to keep and which ones to evict when space runs out?
+
+This is where cache eviction strategies come into play. They determine which items are removed to make room for new ones.
+
+Let's dive into some of the most common cache eviction strategies, their advantages, disadvantages, and use cases.
+
+## 1. Least Recently Used (LRU)
+
+LRU evicts the item that has not been accessed for the longest time. It operates on the principle of `temporal locality`, which assumes that data accessed recently is likely to be accessed again in the near future. This is the most popular and often the most effective general-purpose eviction policy.
+
+![LRU](https://res.cloudinary.com/ankitz007/image/upload/v1757301158/caching/lru_yh9atg.svg)
+
+To implement this, the cache needs to keep track of when each item was last accessed. A common implementation uses a doubly-linked list to maintain the order of access and a hash map for quick lookup.
+
+**Pros**
+
+- **Simplicity**: LRU is relatively easy to understand and implement.
+- **Effectiveness**: It works well for many real-world workloads, especially those with temporal locality.
+- **Predictability**: The eviction pattern is predictable, making it easier to analyze performance.
+
+**Cons**
+
+- **Overhead**: Maintaining the order of access can introduce overhead, especially in high-throughput systems.
+- **Not Always Optimal**: In some scenarios, LRU may not perform well, such as when access patterns are random or when certain items are accessed frequently but not recently.
+- **Cache Pollution**: If a few items are accessed very frequently, they can push out other useful items that might be needed soon.
+- **Memory Usage**: Requires additional memory to maintain the data structures for tracking access order.
+
+**Use Cases**
+
+- **Web browsers**: Caching recently visited web pages.
+- **Database systems**: Caching recently accessed database pages.
+- **Operating Systems**: Managing memory pages in virtual memory systems.
+
+## 2. Least Frequently Used (LFU)
+
+LFU evicts the item that has been accessed the fewest number of times. The idea is that items that are popular and accessed often are more valuable to keep in the cache. Each item in the cache has a counter that is incremented on each access.
+
+![LFU](https://res.cloudinary.com/ankitz007/image/upload/v1757301158/caching/lfu_aukovy.svg)
+
+Unlike LRU, which focuses on recency, LFU emphasizes frequency of access. 
+
+**Pros**
+
+- **Effective for Popular Items**: LFU is well-suited for workloads where certain items are consistently more popular than others.
+- **Stable Performance**: It can provide more stable performance in scenarios with varying access patterns.
+- **Reduced Cache Pollution**: By keeping frequently accessed items, LFU can reduce the chances of cache pollution from less popular items.
+
+**Cons**
+
+- **Complexity**: LFU is more complex to implement than LRU, as it requires maintaining access counters for each item.
+- **Overhead**: The need to update counters on each access can introduce overhead, especially in high-throughput systems.
+- **Stale Data**: LFU may keep infrequently accessed items for too long if their access patterns change, leading to stale data in the cache.
+- **Memory Usage**: Requires additional memory to maintain the data structures for tracking access frequency.
+
+**Use Cases**
+
+- **Recommendation Systems**: Caching popular items based on user interactions.
+- **Search Engines**: Caching frequently queried search results.
+- **Social Media**: Caching popular posts or user-generated content.
+- **E-commerce**: Caching frequently viewed products or categories.
+- **Online Gaming**: Caching frequently accessed game assets or player data.
+
+<Callout type="info">
+**LFU Implementation Tip**: To prevent the **aging problem** where old items with high historical counts stay forever, many LFU implementations use techniques like **periodic counter decay** or **sliding window frequency counting**.
+</Callout>
+
+## 3. First In, First Out (FIFO)
+
+FIFO is perhaps the simplest eviction strategy - it removes items in the order they were added to the cache. Think of it like a queue: the oldest item is always the first to be evicted, regardless of how frequently or recently it was accessed.
+
+![FIFO](https://res.cloudinary.com/ankitz007/image/upload/v1757301157/caching/fifo_m5azeb.svg)
+
+FIFO doesn't consider access patterns at all, making it both predictable and potentially inefficient for workloads with temporal or spatial locality.
+
+**Pros**
+
+- **Ultra-Simple Implementation**: No need to track access times or frequencies - just insertion order.
+- **Low Memory Overhead**: Minimal metadata required, making it very memory-efficient.
+- **Predictable Behavior**: Eviction order is completely deterministic and easy to debug.
+- **High Performance**: No overhead on cache hits since no metadata needs updating.
+
+**Cons**
+
+- **Ignores Access Patterns**: May evict frequently used items simply because they're old.
+- **Poor Cache Hit Ratio**: Generally performs worse than LRU or LFU for most workloads.
+- **No Temporal Locality**: Doesn't leverage the principle that recently accessed items are likely to be accessed again.
+
+**Use Cases**
+
+- **Simple Logging Systems**: Where older logs are naturally less relevant.
+- **Streaming Media**: Where content is consumed sequentially and older chunks aren't revisited.
+- **News Aggregators**: Where newer articles are generally more valuable than older ones.
+- **Prototype Development**: When you need a quick-to-implement caching solution.
+- **Memory-Constrained Systems**: Where the overhead of tracking access patterns is too expensive.
+
+<Callout type="warning">
+**FIFO Gotcha**: While FIFO seems inferior, it can actually outperform LRU in workloads with no temporal locality or when the cache size is very small relative to the working set.
+</Callout>
+
+## 4. Random Replacement
+
+Random replacement evicts a randomly selected item from the cache. This might sound chaotic, but it's surprisingly effective in certain scenarios and serves as a baseline for comparing other algorithms.
+
+![Random](https://res.cloudinary.com/ankitz007/image/upload/v1757301157/caching/rr_lsmeeo.svg)
+
+The beauty of random replacement lies in its simplicity and lack of bias - it doesn't make assumptions about access patterns, which can be an advantage when those patterns are unpredictable.
+
+**Pros**
+
+- **Zero Overhead**: No metadata tracking required - just pick a random item.
+- **Unbiased**: Doesn't favor any particular access pattern, making it robust to adversarial workloads.
+- **Simple to Implement**: Can be implemented in just a few lines of code.
+- **Resistant to Worst-Case Scenarios**: No specific input pattern can consistently fool it.
+- **Good for Unknown Workloads**: When you don't know the access patterns beforehand.
+
+**Cons**
+
+- **Unpredictable Performance**: Results can vary significantly between runs.
+- **May Evict Hot Data**: Could randomly select frequently accessed items for eviction.
+- **No Learning**: Doesn't adapt to or learn from access patterns.
+- **Debugging Difficulty**: Random behavior makes performance issues hard to reproduce and debug.
+
+**Use Cases**
+
+- **Research and Benchmarking**: As a baseline to compare other algorithms against.
+- **Adversarial Environments**: Where access patterns might be deliberately designed to fool smarter algorithms.
+- **Real-Time Systems**: Where the predictable O(1) eviction time is more important than hit ratio.
+- **Load Testing**: Where you want to simulate unpredictable cache behavior.
+
+<Callout type="note">
+**Surprising Fact**: Random replacement often performs within 10-20% of LRU for many workloads, despite being much simpler. It's the "good enough" solution that's hard to beat for its simplicity.
+</Callout>
+
+## 5. Most Recently Used (MRU)
+
+MRU is the opposite of LRU - it evicts the item that has been accessed most recently. This counterintuitive strategy assumes that recently accessed items are less likely to be needed again immediately, making room for items that haven't been accessed recently but might be needed soon.
+
+![MRU](https://res.cloudinary.com/ankitz007/image/upload/v1757301158/caching/mru_vjmqiy.svg)
+
+While MRU seems to go against the principle of temporal locality, it can be effective in specific scenarios where access patterns are cyclical or where recent access indicates temporary completion of work with that data.
+
+**Pros**
+
+- **Anti-Recency Bias**: Prevents recently accessed items from monopolizing cache space.
+- **Cyclical Pattern Optimization**: Works well for workloads that cycle through data sets.
+- **Memory Scanning Protection**: Prevents recent large scans from evicting older valuable data.
+- **Fair Access Distribution**: Gives older cached items a chance to be accessed again.
+
+**Cons**
+
+- **Violates Temporal Locality**: Goes against the common principle that recent items are likely to be reused.
+- **Poor General Performance**: Usually performs worse than LRU for most standard workloads.
+- **Counterintuitive Debugging**: Unexpected behavior can make performance issues harder to diagnose.
+- **Limited Applicability**: Only beneficial in very specific access pattern scenarios.
+
+**Use Cases**
+
+- **Database memory management**: When performing a full table scan that is larger than the available cache, MRU can be more efficient than LRU.
+- **Batch Processing Systems**: Where recently processed batches are unlikely to be reprocessed immediately.
+- **Round-Robin Workloads**: Where access patterns cycle through different data sets predictably.
+- **Backup and Archival Systems**: Where recently backed up data is less likely to be accessed again soon.
+
+<Callout type="warning">
+**MRU Reality Check**: MRU is rarely the best choice for general-purpose caching. It's most effective when combined with workload analysis to identify specific cyclical or anti-temporal patterns in data access.
+</Callout>
+
+## 6. Two-Tiered Cache
+
+Two-tiered caching uses different eviction strategies for different levels or types of data. Typically, this involves a fast, small cache (L1) with simple eviction and a larger, slower cache (L2) with more sophisticated algorithms. This approach recognizes that not all cached data has the same access patterns or performance requirements.
+
+![Two-Tiered](https://res.cloudinary.com/ankitz007/image/upload/v1757301157/caching/ttc_atzo9f.svg)
+
+A common implementation uses LRU for the L1 cache and LFU for the L2 cache, or uses different TTL values for different data types.
+
+**Pros**
+
+- **Optimized Performance**: Each tier can use the most appropriate strategy for its role.
+- **Hierarchical Efficiency**: Hot data stays in fast cache, warm data in slower cache.
+- **Cost-Effective**: Expensive fast storage is used efficiently, cheaper storage handles bulk.
+- **Specialized Handling**: Different data types can have different eviction policies.
+- **Improved Hit Ratios**: Overall hit ratio often exceeds single-tier caches.
+
+**Cons**
+
+- **Implementation Complexity**: Managing multiple tiers with different policies is complex.
+- **Coordination Overhead**: Moving data between tiers requires careful orchestration.
+- **Tuning Complexity**: Multiple parameters to optimize across different tiers.
+- **Debugging Challenges**: Performance issues can occur at multiple levels.
+- **Cache Coherency**: Ensuring consistency between tiers can be challenging.
+
+**Use Cases**
+
+- **CDN Architecture**: Edge caches with simple policies, origin caches with sophisticated algorithms.
+- **Database Systems**: Buffer pool with different strategies for index vs. data pages.
+- **Web Applications**: Browser cache + application cache with different policies.
+- **Mobile Applications**: Memory cache + disk cache with different TTL and size limits.
+- **Microservices**: Service-level cache + shared cache layer with different eviction strategies.
+- **Storage Systems**: SSD cache + HDD cache with different algorithms optimized for each medium.
+
+<Callout type="tip">
+**Two-Tier Design Pattern**: A common successful pattern is LRU for L1 (optimizing for recency) and LFU for L2 (optimizing for frequency), with automatic promotion/demotion based on access patterns.
+</Callout>
+
+## 7. Time-Based Eviction (TTL)
+
+TTL is a cache eviction strategy where each cached item is assigned a fixed lifespan. Once an item’s lifespan expires, it is automatically removed from the cache, regardless of access patterns or frequency.
+
+This ensures that cached data remains fresh and prevents stale data from lingering in the cache indefinitely.
+
+![TTL](https://res.cloudinary.com/ankitz007/image/upload/v1757301157/caching/ttl_ppd14s.svg)
+
+TTL can be combined with other strategies to create hybrid approaches, where items are evicted either when they expire OR when space is needed using another algorithm.
+
+**Pros**
+
+- **Data Freshness**: Ensures cached data doesn't become stale beyond acceptable limits.
+- **Predictable Memory Usage**: Items are guaranteed to be removed within the TTL period.
+- **Domain-Specific Optimization**: Perfect for data with natural expiration (sessions, tokens, etc.).
+- **Compliance Friendly**: Helps meet data retention and privacy requirements.
+- **Simple to Understand**: The eviction logic maps directly to business requirements.
+
+**Cons**
+
+- **Wasteful Eviction**: May remove frequently accessed items just because they're old.
+- **Cache Misses on Fresh Data**: Recently accessed but expired items cause unnecessary cache misses.
+- **TTL Tuning Challenge**: Choosing the right TTL values requires domain knowledge.
+- **Clock Synchronization**: Requires accurate time tracking, which can be challenging in distributed systems.
+- **Thundering Herd Risk**: If many items expire simultaneously, it can cause a cache stampede.
+
+**Use Cases**
+
+- **User Sessions**: Where sessions must expire for security reasons.
+- **API Rate Limiting**: Where rate limit counters should reset after specific time windows.
+- **DNS Caching**: Where DNS records have explicit TTL values.
+- **Stock Price Feeds**: Where financial data becomes stale quickly.
+- **Weather Data**: Where forecasts lose accuracy over time.
+- **Authentication Tokens**: Where security requires periodic re-authentication.
+
+<Callout type="warning">
+**TTL Best Practice**: When using TTL in distributed systems, consider clock skew between servers. A common pattern is to use TTL + jitter to prevent synchronized expirations across the cluster.
+</Callout>
+
+## Choosing the Right Strategy
+
+The choice of cache eviction strategy depends on several factors:
+
+### Access Pattern Characteristics
+
+- **Temporal Locality**: If recently accessed items are likely to be accessed again soon, **LRU** is your best bet.
+- **Frequency Patterns**: If some items are consistently more popular, **LFU** works well.
+- **Mixed Patterns**: For unpredictable workloads, consider **Random** or **Two-Tiered** approaches.
+- **Cyclical Access**: For workloads that cycle through data sets, **MRU** might be counterintuitively effective.
+
+### System Constraints
+
+- **Memory Limited**: **FIFO** or **Random** have the lowest overhead.
+- **CPU Constrained**: Avoid complex algorithms; stick with **FIFO**, **Random**, or simple **LRU**.
+- **Predictable Latency**: **Random** provides consistent O(1) eviction time.
+- **Multi-Level Storage**: **Two-Tiered** approaches can optimize for different storage characteristics.
+
+### Real-World Recommendations
+
+- **Web Applications**: Start with **LRU**, consider **Two-Tiered** for browser + server caches.
+- **Databases**: **LRU** for general use, **Two-Tiered** for different data types (index vs. data pages).
+- **CDNs**: **LRU** with **TTL** for content freshness, **Two-Tiered** for edge + origin.
+- **Batch Processing**: **MRU** combined with other strategies for cyclical workload patterns.
+- **Embedded Systems**: **FIFO** or **Random** for simplicity and low overhead.
+
+<Callout type="success">
+**Pro Tip**: Don't be afraid to measure and experiment! The theoretical "best" algorithm for your workload might not be the practical best when considering implementation complexity, maintenance burden, and actual performance in your specific environment.
+</Callout>
+
+## Conclusion
+
+Remember, the **best cache eviction strategy** is one that balances performance, simplicity, and maintainability for your specific use case. Sometimes a simple **FIFO** that you can implement and debug easily is better than a complex **Adaptive Replacement Cache** (ARC) that takes months to get right!
