@@ -375,3 +375,84 @@ export function containsMathExpressions(content: string): boolean {
     latexDisplayRegex.test(withoutInline)
   )
 }
+
+// Category-related functions
+export async function getAllCategories(): Promise<
+  Map<string, Map<string, number>>
+> {
+  const posts = await getAllPosts()
+  const categoryMap = new Map<string, Map<string, number>>()
+
+  posts.forEach((post) => {
+    const { category, subcategory } = post.data
+    if (category) {
+      if (!categoryMap.has(category)) {
+        categoryMap.set(category, new Map<string, number>())
+      }
+
+      const subcategoryMap = categoryMap.get(category)!
+      if (subcategory) {
+        subcategoryMap.set(
+          subcategory,
+          (subcategoryMap.get(subcategory) || 0) + 1,
+        )
+      } else {
+        // If no subcategory, use "General" as default
+        subcategoryMap.set('General', (subcategoryMap.get('General') || 0) + 1)
+      }
+    }
+  })
+
+  return categoryMap
+}
+
+export async function getPostsByCategory(
+  category: string,
+  subcategory?: string,
+): Promise<CollectionEntry<'blog'>[]> {
+  const posts = await getAllPosts()
+  return posts.filter((post) => {
+    if (post.data.category !== category) return false
+    if (subcategory) {
+      return (
+        post.data.subcategory === subcategory ||
+        (!post.data.subcategory && subcategory === 'General')
+      )
+    }
+    return true
+  })
+}
+
+export async function getSortedCategoriesForPosts(): Promise<
+  {
+    category: string
+    subcategories: { subcategory: string; count: number }[]
+    totalCount: number
+  }[]
+> {
+  const categoryMap = await getAllCategories()
+
+  return [...categoryMap.entries()]
+    .map(([category, subcategoryMap]) => {
+      const subcategories = [...subcategoryMap.entries()]
+        .map(([subcategory, count]) => ({ subcategory, count }))
+        .sort((a, b) => {
+          const countDiff = b.count - a.count
+          return countDiff !== 0
+            ? countDiff
+            : a.subcategory.localeCompare(b.subcategory)
+        })
+
+      const totalCount = subcategories.reduce((sum, sub) => sum + sub.count, 0)
+
+      return {
+        category,
+        subcategories,
+        totalCount,
+      }
+    })
+    .sort((a, b) => {
+      const countDiff = b.totalCount - a.totalCount
+      return countDiff !== 0 ? countDiff : a.category.localeCompare(b.category)
+    })
+}

@@ -79,12 +79,17 @@
     }
 
     /* If a paragraph is immediately followed by a list, give the paragraph a small bottom margin */
-    :where(p):not(:where([class~='not-prose'], [class~='not-prose'] *)):has(+ :where(ul, ol)) {
+    :where(p):not(:where([class~='not-prose'], [class~='not-prose'] *)):has(
+        + :where(ul, ol)
+      ) {
       @apply mb-2;
     }
 
     /* If a list immediately follows a paragraph, reduce the list's top margin */
-    :where(p):not(:where([class~='not-prose'], [class~='not-prose'] *)) + :where(ul, ol):not(:where([class~='not-prose'], [class~='not-prose'] *)) {
+    :where(p):not(:where([class~='not-prose'], [class~='not-prose'] *))
+      + :where(ul, ol):not(
+        :where([class~='not-prose'], [class~='not-prose'] *)
+      ) {
       @apply mt-2;
     }
 
