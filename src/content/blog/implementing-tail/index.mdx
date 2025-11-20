@@ -13,7 +13,7 @@ Here’s a concise roadmap of three approaches to implement a `tail`‑like func
 
 * **Full‑file read**: Read the entire file into memory and slice the last `n` lines; simple but uses `O(file_size)` memory.
 * **Fixed‑size queue**: Stream lines one by one, retaining only the last `n` in a `collections.deque(maxlen=n)`, so memory is bounded by `O(n)`.
-* **Backward block buffer**: Seek from the file’s end in binary mode, read fixed‑size blocks backward, count newlines until enough are found, then decode and print—uses minimal memory even for very large files.
+* **Backward block buffer**: Seek from the file’s end in binary mode, read fixed‑size blocks backward, count newlines until enough are found, then decode and print - uses minimal memory even for very large files.
 
 ## 1. Naïve Full‑File Read
 

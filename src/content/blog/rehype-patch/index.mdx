@@ -11,7 +11,7 @@ draft: true
 
 This post talks about changes I've made to astro-erudite in v1.3.0!
 
-I recently found myself caught between two syntax highlighting packages that I absolutely needed for astro-erudite. On one hand, the current template uses [rehype-pretty-code](https://rehype-pretty.pages.dev/) as its main syntax highlighting solution, but due to issues with its inherent implementation and missing features that I needed, I had created a bunch of custom transformers to make it do what I wanted, and the whole setup was getting unwieldy. I then discovered [Expressive Code](https://expressive-code.com/), which had everything I wanted out of the box—collapsible code sections, terminal and editor frames, gutter comments—it was perfect! Well, almost perfect.
+I recently found myself caught between two syntax highlighting packages that I absolutely needed for astro-erudite. On one hand, the current template uses [rehype-pretty-code](https://rehype-pretty.pages.dev/) as its main syntax highlighting solution, but due to issues with its inherent implementation and missing features that I needed, I had created a bunch of custom transformers to make it do what I wanted, and the whole setup was getting unwieldy. I then discovered [Expressive Code](https://expressive-code.com/), which had everything I wanted out of the box - collapsible code sections, terminal and editor frames, gutter comments - it was perfect! Well, almost perfect.
 
 The primary issue was that Expressive Code doesn't support inline syntax highlighting, which is non-negotiable for me since I need my inline code snippets to look as good as my code blocks (so I could do stuff like `console.log("Hello, world!".split('').reverse().join('')){:js}`). So I opened a feature request at [expressive-code/expressive-code#250](https://github.com/expressive-code/expressive-code/issues/250) and the maintainer seemed interested, saying they'd get around to it eventually. Implementing this feature is a lot easier said than done though, and I summarized it well in another thread:
 
@@ -21,7 +21,7 @@ The primary issue was that Expressive Code doesn't support inline syntax highlig
 > - enable new plugins to explicitly declare support for inline code,
 > - and provide ways for plugins to distinguish between inline and block-level code processing.
 
-However, I needed a solution immediately. My first thought was to use both packages together—Expressive Code for block code and rehype-pretty-code for inline code. However, importing both at the same time caused everything to break spectacularly.
+However, I needed a solution immediately. My first thought was to use both packages together - Expressive Code for block code and rehype-pretty-code for inline code. However, importing both at the same time caused everything to break spectacularly.
 
 ## The hunt for a solution
 

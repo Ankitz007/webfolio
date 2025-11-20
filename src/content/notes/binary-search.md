@@ -20,4 +20,4 @@ int lower_bound(vector<int>& a, int target){
 }
 ```
 
-Edge cases: empty array, all elements < target, duplicates — choose variant carefully.
+Edge cases: empty array, all elements < target, duplicates-choose variant carefully.

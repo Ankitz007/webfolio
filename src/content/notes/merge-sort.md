@@ -5,7 +5,7 @@ date: 2025-05-06
 tags: ['algorithms', 'sorting']
 ---
 
-Merge sort splits the array, sorts halves, and merges them — classic divide & conquer.
+Merge sort splits the array, sorts halves, and merges them-classic divide & conquer.
 
 Complexity: O(n log n) time, O(n) extra space.
 

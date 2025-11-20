@@ -1,7 +1,7 @@
 ---
 title: 'Cyclic Redundancy Checks: Ensuring Data Integrity'
 date: 2025-11-20
-description: 'Learn how CRC powers error detection in networks, storage systems, and protocols—from Ethernet to file systems.'
+description: 'Learn how CRC powers error detection in networks, storage systems, and protocols - from Ethernet to file systems.'
 authors: [ankitz007]
 category: 'System Design'
 subcategory: 'Fundamentals'
@@ -18,7 +18,7 @@ The answer: **Cyclic Redundancy Checks (CRC)** - a mathematical technique that c
 
 ## What is a Cyclic Redundancy Check?
 
-A **CRC** is an error-detecting code that generates a small, fixed-size checksum from data. This checksum acts like a fingerprint—if even a single bit changes, the checksum will (almost certainly) be different.
+A **CRC** is an error-detecting code that generates a small, fixed-size checksum from data. This checksum acts like a fingerprint - if even a single bit changes, the checksum will (almost certainly) be different.
 
 Think of it like a receipt at a restaurant. The total at the bottom is derived from all the individual items. If someone changes an item price but forgets to update the total, you'll immediately notice the mismatch. CRC works similarly but for binary data.
 
@@ -27,7 +27,7 @@ Think of it like a receipt at a restaurant. The total at the bottom is derived f
 1. **Sender**: Calculate a checksum from the data using a mathematical formula
 2. **Sender**: Append the checksum to the data
 3. **Receiver**: Recalculate the checksum from the received data
-4. **Receiver**: Compare checksums—if they match, data is (probably) intact!
+4. **Receiver**: Compare checksums - if they match, data is (probably) intact!
 
 <Callout variant="tip">
 **CRC detects errors but doesn't correct them.** If a CRC check fails, you know data is corrupted, but you'll need to request retransmission or use error-correcting codes (like Reed-Solomon) to fix it.
@@ -48,7 +48,7 @@ Think of it like a receipt at a restaurant. The total at the bottom is derived f
 
 **Storage Integrity**: Modern file systems like ZFS use CRC to detect silent data corruption (bit rot). Without CRC, a flipped bit on your hard drive could corrupt your family photos without you ever knowing.
 
-**System Design**: When designing distributed systems, you need lightweight error detection that doesn't kill performance. CRC is perfect—it's 100x faster than SHA-256 for simple error detection (though not cryptographically secure).
+**System Design**: When designing distributed systems, you need lightweight error detection that doesn't kill performance. CRC is perfect - it's 100x faster than SHA-256 for simple error detection (though not cryptographically secure).
 
 <Callout variant="custom" customLabel="Did You Know?">
 A cosmic ray can flip a bit in your computer's memory. This actually happens! Error Correction Code (ECC) memory uses similar techniques to CRC to detect and correct these errors.
@@ -87,7 +87,7 @@ You don't need to memorize the polynomials! Just know that CRC-32 is the most co
 
 ## How CRC Works: Step-by-Step Example
 
-Let's walk through a simple example with CRC-3 (for illustration—real systems use larger CRCs).
+Let's walk through a simple example with CRC-3 (for illustration - real systems use larger CRCs).
 
 ### Sender Side (Generating the Checksum)
 

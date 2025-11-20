@@ -20,4 +20,4 @@ def two_sum(nums, target):
 # two_sum([2,7,11,15], 9) -> (0,1)
 ```
 
-Edge cases: duplicate values, negative numbers — map handles them fine.
+Edge cases: duplicate values, negative numbers-map handles them fine.

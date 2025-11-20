@@ -1,5 +1,5 @@
 ---
-title: 'Dynamic Programming — Memoization'
+title: 'Dynamic Programming-Memoization'
 description: 'Short memoization template and when to convert recursion → DP.'
 date: 2025-07-22
 tags: ['algorithms', 'dp']

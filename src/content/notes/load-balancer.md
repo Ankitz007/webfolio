@@ -21,4 +21,4 @@ Mini-checklist:
 2. Centralize session/state if you need active-active scaling.
 3. Monitor connection distribution and tail latency.
 
-No code needed — configuration is on the infra side (NGINX, HAProxy, cloud LB).
+No code needed-configuration is on the infra side (NGINX, HAProxy, cloud LB).
