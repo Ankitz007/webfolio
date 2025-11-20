@@ -1,0 +1,406 @@
+---
+title: 'B-Trees and B+ Trees: The Foundation of Database Indexing'
+description: 'Understanding the data structure that powers MySQL, PostgreSQL, and most relational databases.'
+date: 2025-11-20
+tags: ['databases', 'algorithms', 'data-structures']
+authors: ['ankitz007']
+order: 2
+---
+
+import Callout from '@/components/Callout.astro'
+
+## The Workhorse of Database Indexing
+
+When you create an index in MySQL or PostgreSQL without specifying a type, you get a **B+ Tree index**. It's the default for a reason: B+ Trees provide excellent performance for the vast majority of database workloads.
+
+B+ Trees are used in:
+- **MySQL InnoDB**: Both primary and secondary indexes
+- **PostgreSQL**: All indexes
+- **Oracle Database**: Standard indexes
+- **SQLite**: Primary indexes
+- **SQL Server**: Clustered and non-clustered indexes
+
+If you understand B+ Trees, you understand the foundation of how most databases work.
+
+## The Problem with Binary Search Trees
+
+You might remember Binary Search Trees (BST) from computer science courses. They're great for in-memory data structures with O(log N) search time.
+
+But BSTs have fatal flaws for databases:
+
+1. **Balance Issues**: BSTs can become unbalanced (skewed), degrading to O(N) in the worst case. While balanced variants like AVL trees exist, they require frequent rebalancing.
+
+2. **Disk I/O Nightmare**: BST nodes are small - typically holding one key and two child pointers. Since databases read data in 8KB-16KB pages, reading a tiny BST node wastes most of each page read. Traversing from root to leaf might require 20-30 page reads for a million-record table, where each page contains only a single tiny node. At ~1ms per random disk read (HDD), that's 20-30ms per query - and you're wasting 99% of the data in each page you read!
+
+3. **Poor Locality**: BST nodes are scattered in memory/disk, making it impossible to leverage sequential I/O or CPU cache.
+
+<Callout variant="important">
+**The Real Cost**: At database scale, the number of disk I/O operations matters far more than the mathematical complexity. A structure that reads 4 pages is infinitely better than one that reads 20 pages, even if both are O(log N).
+</Callout>
+
+## Enter the B-Tree
+
+B-Trees were invented in 1970 specifically for databases and file systems. The key insight: **make nodes much larger to match disk page sizes**.
+
+### Key Characteristics
+
+1. **Fat Nodes**: Each node can have hundreds or even thousands of children (not just 2!)
+2. **Shallow Trees**: A B-Tree of height 3 can store millions of records
+3. **Page-Aligned**: Each node is typically 4KB, 8KB, or 16KB - exactly one disk page
+4. **Balanced**: All leaf nodes are at the same depth
+
+**Example**: A B-Tree with 100-way branching (each node has up to 100 children) and height 3 can store 100³ = 1 million keys. That's only 3 disk reads to find any record!
+
+## B+ Trees: The Database Standard
+
+Most modern databases actually use **B+ Trees**, a variant of B-Trees with crucial improvements:
+
+### Key Differences from B-Trees
+
+| Feature | B-Tree | B+ Tree |
+|---------|--------|---------|
+| **Data Storage** | Internal and leaf nodes | Only in leaf nodes |
+| **Leaf Linkage** | No links | Leaves linked as doubly-linked list |
+| **Node Capacity** | Lower (stores data) | Higher (only stores keys) |
+| **Range Queries** | Tree traversal required | Simple linked list scan |
+
+<Callout variant="tip">
+**Why B+ Trees Win**: By storing data only in leaves, internal nodes can fit more keys, making the tree even shallower. The linked leaves make range queries blazingly fast.
+</Callout>
+
+### Range Query Example
+
+Consider finding all users with age between 21 and 30:
+
+**B-Tree Approach**:
+- Find the first record (age = 21) via tree traversal
+- Perform in-order traversal jumping up and down the tree for each next record
+- Inefficient and requires many disk seeks
+
+**B+ Tree Approach**:
+- Find the first record (age = 21) via tree traversal
+- Follow the linked list of leaf nodes to get all subsequent records
+- Efficient sequential I/O - extremely fast!
+
+## How B+ Trees Work: Operations Deep Dive
+
+### Structure
+
+A B+ Tree consists of:
+- **Root Node**: Single entry point at the top
+- **Internal Nodes**: Contain keys and pointers to child nodes (no data)
+- **Leaf Nodes**: Contain keys and either data or pointers to data
+- **Linked List**: All leaf nodes connected for range scans
+
+**Key Parameters:**
+- **Order (m)**: Maximum number of children per node
+- **Minimum occupancy**: ⌈m/2⌉ children (except root, which can have as few as 2)
+- **Node size**: Typically matches disk page size (4KB, 8KB, or 16KB)
+
+### Search Operation
+
+**Step-by-Step Process:**
+
+```
+1. Start at root node (always in memory/cache)
+2. Binary search within node's sorted keys
+3. Follow the appropriate child pointer based on key comparison:
+   - If search_key < keys[0]: follow leftmost pointer
+   - If keys[i] ≤ search_key < keys[i+1]: follow pointer[i+1]
+   - If search_key ≥ keys[last]: follow rightmost pointer
+4. Load child node from disk (1 disk I/O)
+5. Repeat steps 2-4 until reaching leaf node
+6. Binary search within leaf to find exact key or determine absence
+```
+
+**Complexity Analysis:**
+
+| Metric | Complexity | Explanation |
+|--------|-----------|-------------|
+| **Time** | O(log_m N) | Logarithmic tree traversal |
+| **Disk I/O** | O(log_m N) | One read per tree level |
+| **Space** | O(1) | Only current path in memory |
+| **Within-Node Search** | O(log m) | Binary search in sorted keys |
+
+**Concrete Example:**
+
+Tree with m = 100 (100-way branching), 1 billion records:
+- **Tree height**: log₁₀₀(10⁹) ≈ 3.34 → 4 levels
+- **Search steps**:
+  1. Root node (cached, 0ms)
+  2. Internal level 1 (1 disk read, ~1ms on HDD, ~0.1ms on SSD)
+  3. Internal level 2 (1 disk read, ~1ms on HDD)
+  4. Leaf node (1 disk read, ~1ms on HDD)
+  5. Binary search within leaf (~20 comparisons for 100 keys)
+- **Total time**: ~3ms (HDD) or ~0.3ms (SSD)
+- **Compare to full table scan**: 50,000+ page reads = 50+ seconds (HDD)
+
+**Best Case**: O(1) - key is in root node (extremely rare)  
+**Average Case**: O(log_m N)  
+**Worst Case**: O(log_m N) - perfectly balanced tree guarantees
+
+### Insertion Operation
+
+**Step-by-Step Process:**
+
+```
+1. Search for insertion point (same as search operation)
+2. Arrive at appropriate leaf node L
+3. If L has space (< m-1 keys):
+   - Insert key in sorted position
+   - Done! O(m) operation
+4. If L is full (has m-1 keys):
+   - SPLIT OPERATION:
+     a. Create new leaf node L'
+     b. Move half the keys to L'
+     c. Copy middle key to parent (or create new root if no parent)
+     d. Update leaf linked list pointers
+     e. If parent is full, recursively split parent
+5. If root split: tree height increases by 1
+```
+
+**Complexity Analysis:**
+
+| Scenario | Time | I/O Reads | I/O Writes | Notes |
+|----------|------|-----------|------------|-------|
+| **No split** | O(log_m N) | log_m N | 1 | Most common case |
+| **Leaf split** | O(log_m N) | log_m N | 2-3 | Write leaf + new leaf + parent |
+| **Cascade split** | O(log_m N) | log_m N | 2×(levels split) | Rare but expensive |
+| **Root split** | O(log_m N) | log_m N | 3 | New root + 2 children |
+
+**Amortized Analysis:**
+
+With a node occupancy of 50-100%, splits occur roughly once every m/2 insertions.
+
+- **Amortized I/O cost**: ~1.2 writes per insertion (accounting for occasional splits)
+- **Write amplification factor**: ~1.2x
+
+**Detailed Example: Inserting key 52**
+
+Initial state (order m=5, max 4 keys per node):
+```
+                    [30]
+                   /    \
+          [10, 20]       [40, 50, 60, 70]  ← Full!
+```
+
+Step 1: Search finds leaf [40, 50, 60, 70] is the insertion point  
+Step 2: Try to insert 52 → leaf is full (4 keys)  
+Step 3: **Split required!**
+
+```
+Split [40, 50, 52, 60, 70] into:
+  Left: [40, 50]
+  Right: [60, 70]
+  Promote: 60 (goes to parent)
+```
+
+Result:
+```
+                    [30, 60]  ← Parent updated
+                   /    |    \
+          [10, 20]   [40, 50, 52]  [60, 70]
+```
+
+**Edge Cases:**
+
+1. **Inserting into empty tree**: Create root leaf node (special case)
+2. **Sequential inserts**: Always split rightmost leaf (predictable pattern)
+3. **Random inserts**: Balanced splits across tree (better long-term balance)
+4. **Duplicate key handling**:
+   - Some systems: allow duplicates in leaf
+   - Others: reject or update existing entry
+
+<Callout variant="custom" customLabel="Performance Insight">
+**Sequential inserts** (e.g., auto-incrementing IDs) are 3-5x faster than random inserts because:
+- 90% of splits only affect rightmost path (better cache locality)
+- No fragmentation in middle of tree
+- Predictable I/O pattern allows better prefetching
+
+This is why `AUTO_INCREMENT` primary keys are so popular!
+</Callout>
+
+### Deletion Operation
+
+**Step-by-Step Process:**
+
+```
+1. Search for key to delete
+2. Remove key from leaf node
+3. If node still ≥ ⌈m/2⌉ keys:
+   - Done! (no rebalancing needed)
+4. If node becomes underflow (< ⌈m/2⌉ keys):
+   - OPTION A: Borrow from sibling
+     a. If left/right sibling has > ⌈m/2⌉ keys
+     b. Redistribute keys between siblings
+     c. Update parent separator key
+   - OPTION B: Merge with sibling
+     a. If siblings also at minimum capacity
+     b. Combine nodes
+     c. Remove separator from parent
+     d. Recursively fix parent if it underflows
+5. If root becomes empty: decrease tree height
+```
+
+**Complexity Analysis:**
+
+| Scenario | Time | I/O Reads | I/O Writes | Frequency |
+|----------|------|-----------|------------|-----------|
+| **No rebalance** | O(log_m N) | log_m N | 1 | ~80% |
+| **Borrow from sibling** | O(log_m N) | log_m N + 1 | 3 | ~15% |
+| **Merge nodes** | O(log_m N) | log_m N + 1 | 2-4 | ~5% |
+| **Cascade merge** | O(log_m N) | log_m N + k | 2k | Rare |
+
+**Amortized Deletion Cost**: ~1.3 I/O writes per deletion
+
+**Detailed Example: Deleting key 50**
+
+Initial state (order m=5, minimum 2 keys per node):
+```
+                    [30]
+                   /    \
+          [10, 20]       [40, 50]  ← Will underflow after deletion!
+```
+
+Step 1: Delete 50 from right leaf → [40]  
+Step 2: Underflow! (only 1 key, need ≥ 2)  
+Step 3: Check siblings:
+   - Left sibling [10, 20] has exactly 2 keys (can't borrow)
+   - **Must merge!**
+
+```
+Merge [10, 20] and [40]:
+  Combined: [10, 20, 40]
+  Remove separator 30 from parent
+```
+
+Result:
+```
+         [10, 20, 40]  ← New root (tree height decreased)
+```
+
+**Edge Cases:**
+
+1. **Deleting from leaf with duplicates**: May not trigger underflow
+2. **Deleting internal node key**: Replace with in-order successor, then delete from leaf
+3. **Deleting from root**: Tree height decrease only happens here
+4. **Deleting last key**: Tree becomes empty
+
+<Callout variant="important">
+**Lazy Deletion Strategy**: Many production databases (including PostgreSQL) don't immediately rebalance on deletion. Instead:
+- Mark entries as deleted (tombstones)
+- Reclaim space during periodic `VACUUM`/`REINDEX`
+- Avoids expensive rebalancing during OLTP workload
+- Trade-off: Some wasted space for better write performance
+</Callout>
+
+### Range Query Operation
+
+**Process:**
+
+```
+1. Search for range start key (O(log_m N))
+2. Begin at first matching leaf
+3. Follow leaf-level linked list, emitting all keys in range
+4. Stop when encountering key > range end
+```
+
+**Complexity Analysis:**
+
+| Metric | Complexity | Explanation |
+|--------|-----------|-------------|
+| **Time** | O(log_m N + k) | Search + scan k results |
+| **I/O** | O(log_m N + k/f) | f = keys per leaf page |
+| **Best Case** | O(log_m N) | Empty range |
+| **Worst Case** | O(log_m N + N) | Full table scan |
+
+**Example: SELECT * FROM users WHERE age BETWEEN 25 AND 30**
+
+Assume 100 users per leaf page, 10,000 matching users:
+- **Search for age=25**: 3 disk reads (tree traversal)
+- **Scan linked list**: 10,000 users / 100 per page = 100 sequential reads
+- **Total I/O**: 103 reads (~100ms on SSD with sequential I/O optimization)
+- **Compare to no index**: 1,000,000 users / 100 per page = 10,000 random reads (~10 seconds!)
+
+<Callout variant="tip" title="Sequential I/O Advantage">
+Range scans benefit enormously from the linked leaf structure. Sequential reads are **100x faster** than random reads on HDDs, and still **10x faster** on SSDs due to prefetching and read-ahead optimizations.
+</Callout>
+
+## Real-World Implementations
+
+### MySQL InnoDB: Clustered B+ Tree
+
+InnoDB uses a **clustered index** approach:
+- **Primary Key Index**: The table itself is a B+ Tree ordered by the primary key
+  - Leaf nodes contain the **full row data**
+  - Extremely fast lookups by primary key
+- **Secondary Indexes**: Separate B+ Trees
+  - Leaf nodes contain: (indexed column value, primary key value)
+  - Lookups require two B+ Tree traversals: secondary index → get PK → primary index → get data
+
+**Implication**: Choose your primary key wisely! It affects the physical layout of your entire table.
+
+### PostgreSQL: Heap Tables + Secondary Indexes
+
+PostgreSQL uses a different approach:
+- **Table Storage**: Unordered heap (just a pile of pages)
+- **All Indexes**: Secondary indexes (including primary key!)
+  - Leaf nodes contain: (key, TID) where TID = (page ID, tuple offset)
+  - Direct pointer to heap tuple - only one tree traversal needed
+
+**Implication**: Secondary index lookups are faster, but updates can be more expensive (if a row moves, all indexes must update).
+
+<Callout variant="warning">
+**Design Difference**: MySQL's clustered design favors primary key lookups. PostgreSQL's heap design favors secondary index lookups. Choose your database accordingly!
+</Callout>
+
+## Performance Characteristics
+
+### Strengths
+
+1. **Balanced Performance**: Excellent for both equality searches and range queries
+2. **Predictable**: O(log N) guaranteed for all operations
+3. **High Fanout**: Wide nodes = shallow trees = few disk I/O operations
+4. **Sequential Scans**: Linked leaves enable efficient range queries
+
+### Weaknesses
+
+1. **Write Amplification**: Every insert may trigger node splits and cascading updates
+2. **Random Writes**: Maintaining sorted order requires random I/O
+3. **Fragmentation**: Over time, pages can become partially empty, wasting space
+4. **Update Overhead**: Updating an indexed column requires deletion + re-insertion
+
+## When to use B+ Trees
+
+B+ Trees are the right choice when:
+
+- **General-Purpose Workloads**: Mix of reads and writes
+- **Range Queries**: Need to scan ranges of values
+- **Sorting**: Need ordered results
+- **High Cardinality**: Column has many unique values
+- **OLTP Systems**: Transactional workloads with varied query patterns
+
+<Callout variant="tip" title="Default Choice">
+If you're unsure which index type to use, start with a B+ Tree. It's a battle-tested solution that handles 90% of use cases well.
+</Callout>
+
+## B+ Trees vs. Other Index Types
+
+| Index Type | Best For | Weak At |
+|------------|----------|---------|
+| **B+ Tree** | General purpose, ranges | Very write-heavy workloads |
+| **LSM Tree** | Write-heavy workloads | Range queries (slower) |
+| **Hash** | Exact equality lookups | Range queries (impossible) |
+| **Spatial** | Geolocation queries | Standard equality/range |
+
+## Conclusion
+
+B+ Trees are the foundation of relational database indexing for good reason. They provide a balanced, predictable solution that works well for the majority of use cases.
+
+Understanding B+ Trees helps you:
+- Choose appropriate primary keys
+- Decide when to create secondary indexes
+- Understand query performance characteristics
+- Diagnose index-related performance issues
+
+In the next post, we'll explore **[LSM Trees](/blog/database-indexing/lsm-trees)**, a radically different approach optimized for write-heavy workloads.

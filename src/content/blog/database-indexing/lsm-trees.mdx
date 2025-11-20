@@ -1,0 +1,215 @@
+---
+title: 'LSM Trees: Optimized for Write-Heavy Workloads'
+description: 'Understanding the indexing strategy that powers Cassandra, RocksDB, and write-intensive databases.'
+date: 2025-11-20
+tags: ['databases', 'nosql', 'performance']
+authors: ['ankitz007']
+order: 3
+---
+
+import Callout from '@/components/Callout.astro'
+
+## The Write Amplification Problem
+
+Imagine you're building a system that ingests millions of sensor readings per second, or a messaging platform that stores billions of chat messages. With B+ Trees, every write requires:
+1. **Finding the correct leaf node**: Reading ~3-4 pages to traverse the tree
+2. **Inserting the data**: Writing the modified page back to disk (random write)
+3. **Potentially splitting nodes**: Writing multiple pages at different disk locations (more random writes)
+4. **Updating the Write Ahead Log**: Writing the change to WAL (sequential write)
+
+Those random writes are **expensive**. On traditional hard drives, random writes can be 100x slower than sequential writes. Even on SSDs, random writes cause write amplification and wear, and are significantly slower than sequential writes.
+
+Enter **Log-Structured Merge (LSM) Trees**, a fundamentally different approach that trades read complexity for blazing-fast writes.
+
+## How LSM Trees Work
+
+LSM Trees follow a simple philosophy: **Never modify data in place. Always append.**
+
+### The Architecture
+
+An LSM Tree consists of multiple components instead of a single tree:
+
+**1. MemTable (In-Memory)**
+- New writes go to an in-memory sorted structure (often a Skip List or Red-Black Tree)
+- Writes are lightning-fast because they're happening in RAM
+- Also written to a Write Ahead Log for durability
+
+**2. SSTables (Sorted String Tables on Disk)**
+- When the MemTable reaches a size threshold (e.g., 64MB), it's flushed to disk as an immutable **SSTable**
+- SSTables are sorted, immutable files
+- Over time, you accumulate many SSTables: SST-1, SST-2, SST-3, etc.
+
+**3. Compaction (Background Process)**
+- Periodically, multiple SSTables are merged into larger, consolidated SSTables
+- Removes deleted/overwritten keys
+- Keeps the number of SSTables manageable
+
+<Callout variant="tip">
+**Sequential I/O is King**: By always appending (writing sequentially), LSM Trees achieve write throughputs that B+ Trees simply cannot match on spinning disks.
+</Callout>
+
+## The Write Path
+
+Here's what happens when you insert a record:
+
+```
+1. Write to WAL (for crash recovery)
+2. Insert into MemTable (in-memory, sorted)
+3. Acknowledge success to application
+[Later, asynchronously...]
+4. When MemTable is full, flush it to disk as SSTable-N
+5. Background compaction merges SSTables
+```
+
+**Result**: Writes complete in microseconds because they touch RAM. The expensive disk operations happen asynchronously!
+
+## The Read Path
+
+Reading from an LSM Tree is more complex because data might be in multiple places:
+
+```
+1. Check MemTable
+2. If not found, check SSTable-Recent
+3. If not found, check SSTable-Older
+4. Continue checking older SSTables...
+```
+
+This sounds terribly slow! If you have 100 SSTables, you might check all of them!
+
+### Bloom Filters to the Rescue
+
+LSM Trees use **Bloom Filters** - a space-efficient probabilistic data structure that can quickly answer: "Is this key **definitely not** in this SSTable?"
+
+- **False Negatives**: Never (if Bloom filter says "might be present," check the SSTable)
+- **False Positives**: Rare (might check an SSTable unnecessarily ~1% of the time)
+- **Space**: 10 bits per key for 1% false positive rate
+
+<Callout variant="custom" customLabel="Did You Know?">
+A Bloom filter for 1 million keys uses only 1.25MB of memory but can eliminate 99% of unnecessary SSTable checks!
+</Callout>
+
+## Compaction Strategies
+
+Compaction is the critical background process that keeps LSM Trees performant. There are two main strategies:
+
+### 1. Size-Tiered Compaction (STCS)
+
+**Strategy**: When you have N SSTables of similar size ~S, merge them into one SSTable of size N×S.
+
+**Pros**:
+- Lower write amplification (data is rewritten fewer times)  
+- Simpler to implement
+
+**Cons**:
+- Higher space amplification (need 2x space during compaction)
+- Reads may need to check many SSTables
+
+**Used By**: Cassandra (default), ScyllaDB
+
+<Callout variant="note">
+**Use Case**: Time-series data or workloads where writes vastly outnumber reads.
+</Callout>
+
+### 2. Leveled Compaction (LCS)
+
+**Strategy**: Organize SSTables into levels where Level(N+1) is 10x larger than Level(N). Each level (except L0) has non-overlapping SSTables.
+
+**Pros**:
+- Better read performance (check at most one SSTable per level)
+- Tighter space bounds
+
+**Cons**:
+- Higher write amplification (data rewritten ~10x as it moves through levels)
+- More complex implementation
+
+**Used By**: RocksDB, LevelDB
+
+<Callout variant="note">
+**Use Case**: Workloads with frequent reads and updates where space efficiency matters.
+</Callout>
+
+### Comparison Table
+
+| Metric | Size-Tiered | Leveled |
+|--------|-------------|---------|
+| **Write Amplification** | Lower (~5x) | Higher (~10x) |
+| **Read Amplification** | Higher (many SSTables) | Lower (one per level) |
+| **Space Amplification** | Higher (2x during compact) | Lower (~1.1x) |
+| **Best For** | Write-heavy | Balanced/Read-heavy |
+
+## Real-World Usage
+
+### Apache Cassandra
+
+Cassandra uses LSM Trees as its core storage engine.
+- Default: Size-tiered compaction
+- Tunable: Can switch to leveled compaction
+- Use case: Write-heavy distributed databases (time series, messaging, logging)
+
+### RocksDB
+
+RocksDB (originally forked from LevelDB by Facebook) is an embedded LSM database.
+- Default: Leveled compaction
+- Used by: MySQL (MyRocks), MongoDB (WiredTiger), CockroachDB
+- Highly tunable with 100+ configuration options
+
+### LevelDB
+
+The original Google implementation that inspired RocksDB.
+- Used by: Chrome browser (for IndexedDB), Minecraft (world storage)
+
+<Callout variant="tip">
+**Production Scale**: Facebook uses RocksDB to handle **100+ PB** of data across its infrastructure.
+</Callout>
+
+## Trade-Offs
+
+### LSM Tree Advantages
+
+1. **Extremely Fast Writes**: Sequential I/O only
+2. **High Write Throughput**: Can handle millions of writes/second
+3. **Good Compression**: SSTables compress well (similar data together)
+4. **Append-Only**: Simpler crash recovery
+
+### LSM Tree Disadvantages
+
+1. **Complex Reads**: May need to check multiple SSTables
+2. **Compaction Overhead**: Background compaction consumes I/O bandwidth
+3. **Write Amplification**: Data is rewritten multiple times during compaction
+4. **Unpredictable Latency**: Compaction can cause latency spikes
+
+## LSM Tree vs. B+ Tree
+
+| Characteristic | B+ Tree | LSM Tree |
+|----------------|---------|----------|
+| **Write Speed** | Moderate (random I/O) | **Very Fast** (sequential I/O) |
+| **Read Speed** | **Very Fast** (predictable) | Moderate (variable) |
+| **Space Efficiency** | Good | **Excellent** (compression) |
+| **Write Amplification** | Moderate | High (compaction) |
+| **Use Case** | General OLTP | Write-heavy (logs, metrics, messages) |
+
+## When to use LSM Trees
+
+LSM Trees are the right choice when:
+
+- **Write-Heavy Workloads**: Ingesting logs, metrics, events, sensor data
+- **Time-Series Data**: Append-only data with time-based queries
+- **Large Datasets**: Multi-TB databases where sequential I/O matters
+- **Embedded Databases**: When you need a fast key-value store in your application
+- **Distributed Systems**: NoSQL databases that need high write throughput
+
+<Callout variant="warning">
+**When NOT to use**: If your workload has many random point lookups with few writes, B+ Trees will likely perform better.
+</Callout>
+
+## Conclusion
+
+LSM Trees represent a fundamentally different philosophy from B+ Trees. By embracing append-only writes and accepting read complexity, they achieve write performance that B+ Trees cannot match.
+
+Understanding LSM Trees helps you:
+- Choose the right database for write-intensive workloads
+- Tune compaction strategies in Cassandra or RocksDB
+- Understand the trade-offs between write and read performance
+- Design systems that handle massive data ingestion
+
+In the next post, we'll explore **[Hash Indexes](/blog/database-indexing/hash-indexes)**, which take yet another approach to achieve O(1) lookups.

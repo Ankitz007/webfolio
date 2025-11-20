@@ -1,0 +1,181 @@
+---
+title: 'Database Indexing: An In-Depth Guide'
+description: 'An in-depth guide to database indexes, from basic concepts to choosing the right indexing strategy.'
+date: 2025-11-20
+tags: ['databases', 'System Design', 'performance']
+category: 'Backend'
+subcategory: 'Databases'
+authors: ['ankitz007']
+---
+
+import Callout from '@/components/Callout.astro'
+
+## What is a Database Index?
+
+Imagine you're looking for a specific chapter in a 1000-page textbook. You could flip through every single page from start to finish, or you could check the table of contents at the beginning and jump directly to page 347. That table of contents? That's essentially what a database index does.
+
+A database index is a **data structure** that improves the speed of data retrieval operations on a database table. Without an index, the database has to scan every single row in a table to find what you're looking for - this is called a **full table scan**. With an index, the database can quickly locate the data without examining every row.
+
+## Key Terminology and Concepts
+
+Before diving deeper, let's establish some fundamental terms you'll encounter throughout this series:
+
+1. **Index**: A separate data structure that maintains a sorted or structured reference to table data, enabling faster lookups.
+
+2. **Primary Key**: A unique identifier for each row in a table. Most databases automatically create an index on the primary key.
+
+3. **Secondary Index**: An index created on non-primary-key columns to speed up queries on those columns.
+
+4. **Clustered Index**: The physical order of data in the table matches the index order. A table can have only one clustered index.
+
+5. **Non-Clustered Index**: A separate structure from the data table that contains pointers back to the actual data rows.
+
+6. **Cardinality**: The number of unique values in a column. High cardinality means many unique values (e.g., user IDs), while low cardinality means few unique values (e.g., boolean flags).
+
+7. **Selectivity**: The ratio of distinct values to total rows. Higher selectivity means an index can more effectively narrow down results.
+
+## The Performance Problem
+
+Let's look at a concrete example. Suppose you have a `users` table with 10 million rows, and you want to find a user by email:
+
+```sql
+SELECT * FROM users WHERE email = 'john@example.com';
+```
+
+### Understanding Full Table Scans
+
+**Without an index**, the database performs a **full table scan**. Here's what actually happens:
+
+1. **Page-Based I/O**: Data is read from disk in pages (typically 8KB or 16KB chunks), with each page containing hundreds of rows
+2. **Disk Reads**: For a 10M row table with ~200 rows per page, the database needs to read ~50,000 pages from disk
+3. **I/O Cost**: At ~1ms per random disk read (HDD), that could be **50 seconds** just loading pages. Even on SSDs (~0.1ms), that's still **5 seconds**
+4. **In-Memory Scanning**: Once pages are in RAM, scanning through them is very efficient (nanoseconds per row), so the dominant cost is disk I/O, not the actual comparison operations
+
+**With an index on the email column**: The database uses a B+ Tree index to locate the exact page containing the matching row:
+
+1. **Tree Traversal**: Reads ~3-4 index pages to navigate the B+ Tree (tree height is typically 3-4 for millions of rows)
+2. **Data Page Read**: Reads 1 data page containing the actual row
+3. **Total I/O**: ~4-5 page reads = **4-5 milliseconds** on HDD, **0.4-0.5 milliseconds** on SSD
+
+The speedup comes from **reducing disk I/O from 50,000 pages to ~5 pages** - a **10,000x reduction** in I/O operations.
+
+<Callout variant="tip">
+**Real-World Impact**: At scale, the difference between indexed and non-indexed queries can mean the difference between a responsive application and one that times out or crashes under load.
+</Callout>
+
+## How Indexes Work
+
+At a high level, an index works by maintaining a sorted copy of one or more columns from your table, along with pointers (references) back to the actual rows.
+
+Think of it like the index at the back of a book:
+- **The words** are sorted alphabetically (makes searching fast)
+- **The page numbers** next to each word tell you where to find it in the book (pointers to data)
+
+When you search for "Turing, Alan" in the book's index, you instantly get the page numbers without reading the entire book.
+
+## Types of Indexes
+
+Different indexing strategies are optimized for different use cases. In this series, we'll explore:
+
+1. **[B-Trees and B+ Trees](/blog/database-indexing/b-trees)**: The most common index structure, used by default in MySQL, PostgreSQL, and most relational databases. Excellent for range queries and equality searches.
+
+2. **[LSM Trees](/blog/database-indexing/lsm-trees)**: Optimized for write-heavy workloads, used in NoSQL databases like Cassandra and RocksDB.
+
+3. **[Hash Indexes](/blog/database-indexing/hash-indexes)**: Provide O(1) lookups for exact matches but can't handle range queries. Used in in-memory databases.
+
+4. **[Modern Indexes](/blog/database-indexing/modern-indexes)**: Specialized indexes like GIN for full-text search and R-Trees for geospatial data.
+
+Before diving into these structures, we'll first explore **[Write Ahead Logging](/blog/database-indexing/write-ahead-logging)**, the mechanism that ensures your data (and indexes) survive crashes.
+
+## Clustered vs. Non-Clustered Indexes
+
+This is a crucial distinction that affects how your database physically stores data.
+
+### Clustered Index
+
+A clustered index determines the **physical order** of data in the table. The table **is** the index - the data rows are stored in the same order as the index.
+
+- **One Per Table**: You can only have one clustered index per table because the data can only be physically ordered one way.
+- **Primary Key Default**: Most databases automatically create a clustered index on the primary key.
+- **Fast Retrieval**: Once you find the key in the index, you immediately have the data (no second lookup needed).
+
+**Example**: In MySQL InnoDB, the primary key is always a clustered index. If you query by primary key, you get the entire row data immediately.
+
+### Non-Clustered Index (Secondary Index)
+
+A non-clustered index is a **separate structure** from the table data. It contains the indexed column values and pointers to the actual data rows.
+
+- **Multiple Per Table**: You can have many non-clustered indexes on a single table.
+- **Two-Step Lookup**: First, find the key in the index. Second, use the pointer to fetch the actual row data.
+- **More Flexibility**: Can create indexes on any combination of columns.
+
+**Example**: In PostgreSQL, all indexes are non-clustered (secondary). Even the primary key index stores pointers to heap tuples.
+
+<Callout variant="important">
+**MySQL vs. PostgreSQL**: MySQL InnoDB uses a clustered primary key index, while PostgreSQL uses heap storage with all indexes being secondary. This architectural difference has significant implications for query performance and table design.
+</Callout>
+
+## The Trade-Offs
+
+Indexes are not free. They come with important trade-offs that you must consider:
+
+### 1. Read Performance vs. Write Performance
+
+**Indexes speed up reads** by providing fast lookup paths to your data.
+
+**Indexes slow down writes** because every `INSERT`, `UPDATE`, or `DELETE` must also update all relevant indexes.
+
+- **Insert**: The new row must be added to every index.
+- **Update**: If an indexed column changes, the index entry must be repositioned.
+- **Delete**: The row must be removed from every index.
+
+A table with 10 indexes will have significantly slower write performance than a table with 0 indexes.
+
+### 2. Storage Overhead
+
+Indexes consume disk space. For large tables, indexes can be as large as (or larger than) the table itself, especially if you have many composite indexes.
+
+### 3. Maintenance Cost
+
+Indexes can become fragmented over time as data is inserted, updated, and deleted. This fragmentation can degrade query performance, requiring periodic maintenance operations like `REINDEX` or `OPTIMIZE TABLE`.
+
+<Callout variant="warning">
+**Common Mistake**: Adding indexes on every column "just in case" can severely degrade write performance and waste storage. Only create indexes that are actually used by your queries.
+</Callout>
+
+## When NOT to use an Index
+
+Indexes aren't always beneficial. Here are situations where an index might hurt more than it helps:
+
+1. **Small Tables**: If a table has only a few hundred rows, a full table scan is often faster than using an index due to the overhead of index traversal.
+
+2. **Low Cardinality Columns**: Columns with few distinct values (e.g., a boolean `is_active` field with only TRUE/FALSE) benefit little from indexing. If 90% of rows are `is_active = TRUE`, the database will likely ignore an index and scan the table anyway.
+
+3. **High Write, Low Read**: If a table is written to constantly but rarely queried, indexes add overhead without providing benefit.
+
+4. **Columns in WHERE Clauses with Functions**: An index on `email` won't help with `WHERE LOWER(email) = 'john@example.com'` because the function transforms the column value before comparison.
+
+## Choosing the Right Index Strategy
+
+The decision of which type of index to use depends on your query patterns and workload characteristics:
+
+| Scenario | Recommended Index Type |
+|----------|------------------------|
+| Equality searches (`WHERE id = 123`) | B-Tree or Hash |
+| Range queries (`WHERE age > 21`) | B-Tree |
+| Sorting (`ORDER BY created_at`) | B-Tree |
+| Full-text search (`WHERE content LIKE '%database%'`) | GIN or Full-Text Index |
+| Geospatial queries (nearby locations) | R-Tree or Spatial Index |
+| Write-heavy workloads | LSM Tree |
+
+<Callout variant="tip" title="Start Simple">
+When in doubt, start with a B-Tree index. It's the default for good reason - it handles the vast majority of use cases well. Only move to specialized indexes when you have a specific performance problem that B-Trees can't solve.
+</Callout>
+
+## Conclusion
+
+Database indexes are one of the most powerful tools for improving query performance, but they require careful consideration. In this series, we'll dive deep into each indexing strategy, exploring their internal workings, trade-offs, and real-world applications.
+
+Understanding indexes at this level will help you make informed decisions about schema design, query optimization, and database architecture.
+
+Let's start our journey by first understanding **[Write Ahead Logging](/blog/database-indexing/write-ahead-logging)** - the foundation that keeps your data safe.

@@ -1,0 +1,212 @@
+---
+title: 'Hash Indexes: Fast Lookups with Limitations'
+description: 'Understanding hash-based indexing and why O(1) lookups come with significant trade-offs.'
+date: 2025-11-20
+tags: ['databases', 'algorithms', 'hashing']
+authors: ['ankitz007']
+order: 4
+---
+
+import Callout from '@/components/Callout.astro'
+
+## The O(1) Promise
+
+Imagine you need to look up a user by their  ID - and you need it to be instant, regardless of whether you have 1,000 users or 1 billion users. B+ Trees give you O(log N) performance, which is excellent. But hash indexes promise even better: **O(1) constant-time lookups**.
+
+The key question is: what are you giving up for that speed?
+
+## How Hash Indexes Work
+
+A hash index is essentially a persistent hash table - the same data structure you use in programming with `HashMap` in Java or `dict` in Python.
+
+### Basic Mechanism
+
+```
+1. Apply hash function to the key
+   hash("user@example.com") → 42839201
+   
+2. Map hash to a bucket
+   42839201 % 10000 → bucket 1201
+   
+3. Look up data in that bucket
+   - If no collisions: O(1) direct access
+   - If collisions: scan linked list/probe for match
+```
+
+The hash function distributes keys uniformly across buckets, and bucket lookups happen in constant time.
+
+<Callout variant="tip">
+**Speed Advantage**: With a good hash function and low collision rate, hash indexes can perform lookups **10-100x faster** than B+ Trees for exact-match queries.
+</Callout>
+
+## The Critical Limitations
+
+Hash indexes are blazingly fast for one specific operation, but they have severe limitations:
+
+### 1. No Range Queries
+
+**B+ Tree** (sorted):
+```sql
+SELECT * FROM users WHERE age >= 21 AND age <= 30;
+-- Uses index to efficiently scan range
+```
+
+**Hash Index** (random order):
+```sql
+SELECT * FROM users WHERE age >= 21 AND age <= 30;
+-- Hash index is USELESS. Must scan entire table.
+```
+
+The hash function destroys any ordering. Keys that are numerically close (21, 22, 23) end up in completely random buckets.
+
+### 2. No Sorting
+
+```sql
+SELECT * FROM users ORDER BY email;
+-- Hash index provides NO help
+-- Must scan table and sort in memory
+```
+
+### 3. No Prefix Matching
+
+With a composite index on `(first_name, last_name)`:
+
+**B+ Tree**:
+```sql
+SELECT * FROM users WHERE first_name = 'John';
+-- Can use index prefix!
+```
+
+**Hash Index**:
+```sql
+SELECT * FROM users WHERE first_name = 'John';
+-- Cannot use index (hash is on combined value)
+```
+
+### 4. Collision Handling Complexity
+
+When two keys hash to the same bucket, you need a collision resolution strategy:
+- **Chaining**: Each bucket is a linked list
+- **Open Addressing**: Probe for next empty bucket
+
+Both add complexity and can degrade to O(N) in worst cases.
+
+<Callout variant="warning">
+**The 80/20 Rule**: Hash indexes are perfect for 20% of queries (exact equality) but useless for the other 80% (ranges, sorting, prefix matching). Choose carefully!
+</Callout>
+
+## Dynamic Hashing
+
+A fixed-size hash table doesn't work for databases that grow over time. You need **dynamic hashing** that can expand without rewriting everything.
+
+### Linear Hashing
+
+**Problem**: Resizing a hash table (doubling size, rehashing all keys) locks the entire and takes forever.
+
+**Solution**: Split buckets incrementally!
+
+- Maintain a "split pointer" that tracks which bucket to split next
+- When any bucket overflows, split the bucket at the split pointer (not the overflowing bucket!)
+- Gradually migrate from hash function h₁ to h₂
+- No global locks, constant incremental cost
+
+**Used By**: PostgreSQL (historically), some custom databases
+
+### Extendible Hashing
+
+**Problem**: How to grow without moving data?
+
+**Solution**: Add a level of indirection with a directory!
+
+- **Directory**: Array of pointers to buckets (can double in size)
+- **Buckets**: Actual data (don't move)
+- **Global Depth**: How many hash bits the directory uses
+- **Local Depth**: How many bits each bucket uses
+
+When a bucket overflows:
+1. Split the bucket
+2. If local depth < global depth: just update directory pointers
+3. If local depth = global depth: double directory size
+
+**Result**: Most bucket splits don't require directory doubling.
+
+<Callout variant="tip">
+**Space Optimization**: Extendible Hashing can handle 1 billion keys while only doubling the directory a handful of times.
+</Callout>
+
+## Real-World Usage
+
+### Redis
+
+Redis uses hash tables internally for its dict data structure:
+- Incremental rehashing to avoid blocking
+- Dual hash tables during resize (read from both, write to new)
+- Perfect for key-value lookups
+
+### PostgreSQL
+
+PostgreSQL supports explicit hash indexes:
+```sql
+CREATE INDEX email_hash_idx ON users USING HASH (email);
+```
+
+**Note**: Hash indexes in PostgreSQL were historically not crash-safe (not WAL-logged). This was fixed in PostgreSQL 10, but they're still rarely used because B-Trees are almost as fast and much more versatile.
+
+### Memcached
+
+Memcached uses a hash table for its entire key-value store:
+- Client-side consistent hashing for distributing keys across servers
+- Server-side hash table for local lookups
+
+### In-Memory Databases
+
+Systems like H2, HSQLDB, and various embedded databases use hash indexes heavily because:
+- Random access is cheap in RAM (no disk seeks)
+- Simplicity and speed matter more than versatility
+
+## Hash Index vs. B+ Tree
+
+| Feature | Hash Index | B+ Tree |
+|---------|------------|---------|
+| **Equality Lookups** | O(1) **Faster** | O(log N) |
+| **Range Queries** | ❌ Impossible | ✅ Excellent |
+| **Sorting** | ❌ Impossible | ✅ Native support |
+| **Prefix Matching** | ❌ No | ✅ Yes |
+| **Disk I/O Pattern** | Random | Sequential (range scans) |
+| **Memory Usage** | Moderate | Higher (tree nodes) |
+
+## When to Use Hash Indexes
+
+Hash indexes are the right choice when:
+
+- **Exact Match Only**: Your queries are **ONLY** equality checks (no ranges)
+- **No Sorting Needed**: You never need results in sorted order
+- **In-Memory Databases**: Where random access is cheap
+- **Key-Value Stores**: Pure get/set operations (Redis, Memcached)
+- **Unique Constraints**: Internal implementation for enforcing uniqueness
+
+<Callout variant="important" title="Common Use Case">
+**Perfect fit**: User session storage where you only look up by session_id (exact match, no ranges, no sorting needed).
+</Callout>
+
+## When NOT to Use Hash Indexes
+
+Avoid hash indexes when:
+
+- You need range queries (`>`, `<`, `BETWEEN`)
+- You need sorted results (`ORDER BY`)
+- You need prefix matching (`WHERE name LIKE 'John%'`)
+- Your workload is mixed (reads + scans)
+- You're using a general-purpose RDBMS for OLTP (stick with B+ Trees)
+
+## Conclusion
+
+Hash indexes are a specialized tool. They excel at one thing - exact equality lookups - and fail at everything else. In the relational database world, B+ Trees' versatility usually wins.
+
+However, understanding hash indexes helps you:
+- Choose the right tool for key-value workloads
+- Understand the internals of Redis, Memcached
+- Make informed decisions about unique constraints
+- Recognize when O(1) lookups are worth the trade-offs
+
+In the final post of this series, we'll explore **[Modern Indexes](/blog/database-indexing/modern-indexes)** like GIN and Spatial indexes that solve problems neither B+ Trees nor hash indexes can handle efficiently.

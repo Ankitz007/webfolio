@@ -1,0 +1,294 @@
+---
+title: 'Write Ahead Logging (WAL): Ensuring Data Durability'
+description: 'Understanding how databases guarantee data survives crashes using Write Ahead Logging and recovery protocols.'
+date: 2025-11-20
+tags: ['databases', 'internals', 'durability']
+authors: ['ankitz007']
+order: 1
+---
+
+import Callout from '@/components/Callout.astro'
+
+## The Durability Promise
+
+When a database responds with "Transaction committed successfully," it's making a **promise**: your data is safe. Even if the power cable is yanked out of the server at that exact moment, your data will be there when the system comes back online.
+
+But how can a database make such a guarantee? The answer lies in **Write Ahead Logging (WAL)**, one of the most fundamental mechanisms in database systems.
+
+## The Problem: Crashes and Data Loss
+
+Imagine you're updating a user's account balance from \$100 to \$200. The database needs to:
+1. Read the page containing the user's row from disk into memory (buffer pool)
+2. Modify the row in the in-memory page
+3. Eventually write the dirty page back to disk (often batched with other writes for efficiency)
+
+What happens if the server crashes between step 2 and step 3? The in-memory change is lost, and the user is still at $100 - even though your application might have received a "success" response.
+
+<Callout variant="warning">
+**Real-World Impact**: Without proper durability mechanisms, databases would lose data on every crash. This is unacceptable for systems handling financial transactions, medical records, or any critical data.
+</Callout>
+
+Writing directly to data files is also **slow**. Data files are organized for efficient querying (e.g., sorted in B+ Tree order), not for efficient writing. Modifying a row requires:
+1. Reading the page containing that row from disk (~1ms random read on HDD)
+2. Modifying it in memory
+3. Writing the entire page back to the same location
+
+These random I/O operations are the bottleneck - updating scattered pages across the disk prevents the database from achieving high write throughput.
+
+## How Write Ahead Logging Works
+
+WAL solves both problems with a simple but powerful idea: **write changes to a sequential log file before applying them to the actual data files**.
+
+Here's the flow:
+
+1. **Begin Transaction**: A user wants to update account balance
+2. **Write to WAL**: The database appends a log record describing the change to the WAL file (sequential write - fast!)
+3. **Fsync**: The database forces the WAL to disk (ensuring durability)
+4. **Commit Acknowledged**: The database tells the application "success!"
+5. **Apply to Data Files**: Later, in the background, the database applies the change to the actual data files
+
+If the system crashes after step 4 but before step 5, the WAL contains a record of the change. During recovery, the database simply **replays** the WAL to reconstruct the missing changes.
+
+<Callout variant="tip">
+**Sequential vs. Random I/O**: Sequential writes (appending to a log) are **100x faster** than random writes (updating different parts of a data file) on traditional hard drives, and still 10x faster on SSDs.
+</Callout>
+
+## Key Components of WAL
+
+### 1. Log Records
+
+Each modification to the database generates a log record containing:
+- **Transaction ID**: Which transaction made this change?
+- **Operation**: What kind of change? (INSERT, UPDATE, DELETE)
+- **Before Image**: What was the old value? (for undo)
+- **After Image**: What is the new value? (for redo)
+
+### 2. Log Sequence Number (LSN)
+
+Every log record is assigned a unique **Log Sequence Number (LSN)**. This is typically the byte offset in the WAL file where the record was written.
+
+LSNs provide a total ordering of all operations in the database, which is critical for:
+- Determining which operations to replay during recovery
+- Coordinating between the WAL and data pages
+- Supporting replication to standby servers
+
+### 3. Checkpoints
+
+If the WAL grew forever, recovery would take forever (replaying years of logs). **Checkpoints** solve this.
+
+A checkpoint is a point in time when the database:
+1. Flushes all dirty pages (modified data in memory) to disk
+2. Records a checkpoint record in the WAL with the current LSN
+
+During recovery, the database only needs to replay logs from the last checkpoint forward.
+
+<Callout variant="important">
+**Crash Recovery Time**: The frequency of checkpoints directly affects how long it takes to recover from a crash. More frequent checkpoints = faster recovery, but more I/O overhead during normal operation.
+</Callout>
+
+## The ARIES Recovery Protocol
+
+Most modern databases use the **ARIES** (Algorithms for Recovery and Isolation Exploiting Semantics) protocol, developed at IBM. It's the gold standard for crash recovery.
+
+ARIES recovery happens in three phases:
+
+### Phase 1: Analysis
+Scan the WAL from the last checkpoint to the end, building:
+- **Dirty Page Table**: Which pages were modified but not yet flushed?
+- **Transaction Table**: Which transactions were active at crash time?
+
+### Phase 2: Redo (Repeating History)
+Replay all changes from the WAL, bringing the database to the exact state it was in at the moment of the crash. This includes changes from transactions that will ultimately be aborted.
+
+**Why redo even aborted transactions?** Because it simplifies the logic. We recreate the exact crash state first, then clean it up in the next phase.
+
+### Phase 3: Undo
+Roll back any transactions that were active but not committed at crash time. This ensures atomicity - a transaction either completes fully or has no effect.
+
+<Callout variant="custom" customLabel="Did You Know?">
+The "Repeating History" principle of ARIES is what makes it so robust. By recreating the exact crash state before cleaning up, ARIES can handle crashes that occur **during recovery itself**.
+</Callout>
+
+## Real-World Examples
+
+### PostgreSQL WAL
+
+PostgreSQL stores WAL files in the `pg_wal` directory (formerly `pg_xlog`). Each WAL file is typically 16MB.
+
+Key configuration options:
+- `wal_level`: Controls how much information is written (minimal, replica, logical)
+- `checkpoint_timeout`: How often to trigger checkpoints (default: 5 minutes)
+- `max_wal_size`: Maximum size of WAL before forcing a checkpoint
+
+PostgreSQL also uses WAL for **streaming replication**: standby servers consume the WAL to stay synchronized with the primary.
+
+### MySQL InnoDB Redo Log
+
+MySQL's InnoDB storage engine uses a **redo log** (equivalent to WAL) stored in `ib_logfile0` and `ib_logfile1`.
+
+Key configuration:
+- `innodb_log_file_size`: Size of each log file
+- `innodb_flush_log_at_trx_commit`: Controls fsync behavior
+  - `0`: Fsync every second (fast, but risk of data loss)
+  - `1`: Fsync on every commit (safest, slower)
+  - `2`: Write tos OS cache on commit, fsync every second (balanced)
+
+## Trade-Offs and Configuration Strategies
+
+Understanding WAL trade-offs is crucial for database performance tuning. Let's explore the key decisions you'll face.
+
+### Trade-Off #1: Checkpoint Frequency
+
+Checkpoints create a tension between normal operation performance and crash recovery speed.
+
+**What Actually Happens During a Checkpoint:**
+
+Imagine your database has been running for an hour with heavy writes. There are now 10,000 dirty pages in memory (pages that have been modified but not yet written to disk). When a checkpoint starts:
+
+1. **Flush Phase**: All 10,000 dirty pages are written to disk
+   - On an HDD: ~10 seconds of intense I/O (assuming 1,000 pages/sec)
+   - On an SSD: ~2 seconds (faster, but still noticeable)
+2. **Checkpoint Record**: Write a marker in the WAL saying "checkpoint complete at LSN 123456"
+
+During this flush, the database's write performance degrades significantly because disk I/O is saturated.
+
+**Scenario: Frequent Checkpoints (Every 1 Minute)**
+
+```
+Timeline: [Checkpoint]--1min--[Checkpoint]--1min--[Checkpoint]--CRASH
+                                                                  ↓
+                                                         Recovery: Only replay 1 minute of WAL
+```
+
+- ✅ **Recovery Time**: Lightning fast - only 1 minute of WAL to replay
+- ❌ **Write Performance**: Constant I/O interruptions every minute, reducing throughput by ~15-20%
+- 💾 **Disk Space**: Minimal WAL accumulation (~100MB for a busy system)
+
+**Scenario: Infrequent Checkpoints (Every 30 Minutes)**
+
+```
+Timeline: [Checkpoint]----------30min----------[Checkpoint]--CRASH
+                                                              ↓
+                                                    Recovery: Replay 30 minutes of WAL
+```
+
+- ✅ **Write Performance**: Smooth operation, 30 minutes of uninterrupted writes
+- ❌ **Recovery Time**: Could take 5-10 minutes to replay 30 minutes of heavy write activity
+- 💾 **Disk Space**: WAL can grow to several GBs during this period
+
+**Real-World Decision Matrix:**
+
+| Your Scenario | Recommended Checkpoint Frequency |
+|---------------|----------------------------------|
+| **E-commerce during Black Friday** | Frequent (1-2 min) - can't afford long downtime |
+| **Analytics/data warehouse** | Infrequent (15-30 min) - prioritize bulk load speed |
+| **OLTP with SSD storage** | Moderate (5 min) - balanced approach |
+| **Development/testing** | Infrequent - recovery time doesn't matter |
+
+### Trade-Off #2: Fsync Policy (Durability vs. Throughput)
+
+Every time a transaction commits, the database must decide: do we wait for the WAL to reach physical disk, or trust the OS?
+
+**Option 1: Fsync on Every Commit** (`innodb_flush_log_at_trx_commit = 1`)
+
+```
+Application: "INSERT INTO orders..."
+Database:    Write to WAL buffer → Fsync to disk (wait ~1-5ms) → Return "Success"
+                                    ↑
+                              This is the bottleneck
+```
+
+- ✅ **Durability**: Zero data loss - if the server explodes after "Success", data survives
+- ❌ **Throughput**: Limited to ~200-1000 transactions/sec (depending on disk speed)
+- **Use Case**: Financial transactions, medical records, anything critical
+
+**Option 2: Fsync Every Second** (`innodb_flush_log_at_trx_commit = 2`)
+
+```
+Application: "INSERT INTO orders..."
+Database:    Write to WAL buffer → Write to OS cache → Return "Success"
+                                    ↓
+                                OS flushes to disk every 1 second
+```
+
+- ✅ **Throughput**: 10,000+ transactions/sec possible
+- ⚠️ **Durability**: Could lose up to 1 second of committed transactions if the OS crashes
+- **Use Case**: Session storage, clickstream data, caches
+
+**Option 3: No Fsync** (`innodb_flush_log_at_trx_commit = 0`)
+
+- ✅ **Throughput**: Maximum possible (50,000+ transactions/sec)
+- ❌ **Durability**: Could lose several seconds of data on crash
+- **Use Case**: Temporary tables, development environments, reconstructible data
+
+**Concrete Example:**
+
+An e-commerce site processes 10,000 orders/hour during peak times. That's ~3 orders/second.
+
+- **With Fsync=1**: Each order commits in ~5ms. No problem, plenty of headroom.
+- **With Fsync=0**: Each order commits in ~0.1ms. Overkill for this workload, but might be worth it if the order is immediately backed up to a message queue.
+
+### Trade-Off #3: WAL Disk Space Management
+
+**The Problem:**
+
+WAL files are append-only. If you're doing 1GB of writes per hour, you generate 1GB of WAL per hour. Without cleanup, you'll fill your disk.
+
+**How Cleanup Works:**
+
+After a checkpoint, all WAL records **before** that checkpoint are no longer needed for crash recovery (because the data is now on disk). These old WAL files can be:
+1. **Deleted** (if you don't need point-in-time recovery)
+2. **Archived** (if you want to restore to any historical point)
+
+**Example Timeline:**
+
+```
+Hour 1: Generate 1GB WAL → Checkpoint → Can delete WAL from Hour 1
+Hour 2: Generate 1GB WAL → Checkpoint → Can delete WAL from Hour 2
+Hour 3: Generate 1GB WAL → Checkpoint → Can delete WAL from Hour 3
+```
+
+**Configuration Strategy:**
+
+PostgreSQL's `max_wal_size` tells the database: "If WAL grows beyond this size, force a checkpoint even if it's not time yet."
+
+- **Set too low** (e.g., 1GB): Constant forced checkpoints, poor write performance
+- **Set too high** (e.g., 100GB): Risk running out of disk space during a bulk import
+- **Sweet spot**: 2-3x the size of your typical WAL generation between natural checkpoints
+
+**Real Example:**
+
+Your database generates 5GB of WAL per hour during business hours. You checkpoint every 15 minutes.
+
+- Expected WAL between checkpoints: ~1.25GB
+- **Set `max_wal_size = 4GB`**: Gives a 3x safety buffer for traffic spikes
+- **Set `min_wal_size = 2GB`**: Keeps 2GB of WAL around for replication lag tolerance
+
+<Callout variant="tip" title="Monitoring WAL Growth">
+Set up alerts if WAL directory size exceeds 80% of `max_wal_size`. This gives you early warning of checkpoint performance issues or configuration problems.
+</Callout>
+
+## When WAL Matters Most
+
+WAL is always present in ACID-compliant databases, but understanding it deeply matters in these scenarios:
+
+- **High Write Throughput**: Tuning WAL settings can significantly impact performance
+- **Replication**: WAL is the foundation of streaming replication and log shipping
+- **Point-in-Time Recovery**: WAL archives enable restoring to any point in time
+- **Forensics**: WAL contains a complete history of all database modifications
+
+<Callout variant="tip" title="Performance Tuning">
+If you have a write-heavy workload and can tolerate some data loss in a crash (e.g., analytics or caching layer), consider tuning `innodb_flush_log_at_trx_commit` to `2` or disabling fsync entirely for massive performance gains.
+</Callout>
+
+## Conclusion
+
+Write Ahead Logging is the unsung hero of database reliability. It's the mechanism that allows databases to make the durability promise while maintaining acceptable performance.
+
+Understanding WAL helps you:
+- Make informed decisions about database configuration
+- Troubleshoot performance issues related to disk I/O
+- Design disaster recovery strategies
+- Understand the trade-offs in replication architectures
+
+In the next post, we'll explore **[B-Trees and B+ Trees](/blog/database-indexing/b-trees)**, the data structures that WAL protects.
