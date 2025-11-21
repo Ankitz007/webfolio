@@ -1,0 +1,260 @@
+---
+title: 'The TrueTime API: Bounded Uncertainty'
+description: 'Understanding the deceptively simple three-method API that enables external consistency in distributed systems.'
+date: 2025-11-21
+tags: ['distributed systems', 'databases', 'spanner', 'truetime']
+authors: ['ankitz007']
+order: 1
+---
+
+import Callout from '@/components/Callout.astro'
+
+## The TrueTime API
+
+The TrueTime API is deceptively simple, consisting of just three core methods:
+
+### 1. `TT.now() → TTinterval`
+
+Returns the current time as an interval `[earliest, latest]`.
+
+```python
+class TTinterval:
+    def __init__(self, earliest: int, latest: int):
+        """
+        Time interval in microseconds since epoch.
+        
+        The true current time is guaranteed to be somewhere 
+        in [earliest, latest].
+        """
+        self.earliest = earliest  # Lower bound
+        self.latest = latest      # Upper bound
+    
+    @property
+    def uncertainty(self) -> int:
+        """The epsilon (ε) uncertainty bound in microseconds."""
+        return self.latest - self.earliest
+
+# Example usage
+interval = TT.now()
+print(f"Current time is between {interval.earliest} and {interval.latest}")
+print(f"Uncertainty: ±{interval.uncertainty / 2} μs")
+
+# Output might be:
+# Current time is between 1700000000000 and 1700000006000
+# Uncertainty: ±3000 μs (±3ms)
+```
+
+**Key Insight**: The width of this interval (ε, epsilon) is typically 1-7 milliseconds in Google's network. This tight bound is achieved through expensive hardware.
+
+### 2. `TT.after(t) → bool`
+
+Returns `True` if timestamp `t` has **definitely passed**.
+
+```python
+def TT.after(t: int) -> bool:
+    """
+    Returns True if 't' is definitely in the past.
+    
+    Implementation: return t < TT.now().earliest
+    
+    If this returns True, we're 100% certain that 't' has passed,
+    even accounting for clock uncertainty.
+    """
+    now = TT.now()
+    return t < now.earliest
+
+# Example: Has the transaction commit timestamp passed?
+commit_timestamp = 1700000000000
+
+if TT.after(commit_timestamp):
+    print("Commit timestamp is definitely in the past")
+    # Safe to make transaction visible to other readers
+else:
+    print("Commit timestamp might still be in the future")
+    # Must wait before exposing this transaction
+```
+
+**Why this matters**: This is how Spanner knows when it's safe to make a committed transaction visible to other nodes.
+
+### 3. `TT.before(t) → bool`
+
+Returns `True` if timestamp `t` has **definitely not yet occurred**.
+
+```python
+def TT.before(t: int) -> bool:
+    """
+    Returns True if 't' is definitely in the future.
+    
+    Implementation: return t > TT.now().latest
+    
+    If this returns True, we're 100% certain that 't' hasn't 
+    happened yet, even accounting for clock uncertainty.
+    """
+    now = TT.now()
+    return t > now.latest
+
+# Example: Checking if a timestamp is safely in the future
+future_timestamp = 1700000010000
+
+if TT.before(future_timestamp):
+    print("This timestamp is definitely in the future")
+    # Safe to schedule work for this time
+else:
+    print("This timestamp might have already passed")
+```
+
+**Rarely used**: In practice, `TT.after()` is used far more often than `TT.before()` in Spanner's implementation.
+
+<Callout variant="tip">
+**The Guarantee**: If `TT.after(t)` returns `True`, then *every machine in the distributed system* will agree that `t` is in the past. This global agreement is what enables external consistency.
+</Callout>
+
+## Why Bounded Uncertainty Matters
+
+The magic of TrueTime isn't perfect accuracy - it's the **guarantee of bounded uncertainty**. 
+
+Consider two scenarios:
+
+### Without TrueTime (NTP)
+```python
+# Server A thinks current time is 100
+# Server B thinks current time is 105
+# Both could be wrong by ±100ms!
+
+# Server A commits transaction at timestamp 100
+# Server B commits transaction at timestamp 105
+
+# Question: Which happened first?
+# Answer: We actually don't know! The uncertainty overlaps.
+```
+
+### With TrueTime
+```python
+# Server A: TT.now() = [98, 102]  (uncertainty ±2ms)
+# Server B: TT.now() = [103, 107] (uncertainty ±2ms)
+
+# These intervals DON'T overlap!
+# We can definitively say Server A's time is earlier.
+
+# If Server A uses timestamp 102 (latest bound)
+# And waits until TT.after(102) is true
+# Then EVERY server will agree 102 is in the past
+```
+
+This bounded uncertainty is what enables **external consistency** - the guarantee that if transaction T1 commits before T2 starts in real-world time, then T1's timestamp < T2's timestamp.
+
+## The Three Guarantees
+
+TrueTime provides three critical guarantees:
+
+1. **Bounded Interval**: The true current time is **always** within `[earliest, latest]`
+
+2. **Global Agreement**: If `TT.after(t)` returns `True` on one machine, it will return `True` on **all machines** (even accounting for clock skew)
+
+3. **Progress**: The uncertainty ε is bounded - it won't grow unbounded even if synchronization temporarily fails
+
+<Callout variant="important">
+**The Cost of Certainty**: That 1-7ms uncertainty bound requires GPS receivers and atomic clocks in every datacenter. Most companies can't afford this infrastructure, which is why TrueTime-style systems remain rare.
+</Callout>
+
+## Visualizing Time Uncertainty
+
+Let's visualize how TrueTime intervals work across multiple servers:
+
+```
+Time →
+
+Server A:  [====A====]           actual time: 100.3ms
+Server B:     [====B====]        actual time: 101.8ms  
+Server C:        [====C====]     actual time: 103.1ms
+
+Each bracket represents a TrueTime interval [earliest, latest]
+The true time is somewhere within that interval
+```
+
+**Key Observation**: As long as the intervals don't overlap, we can establish a definitive ordering!
+
+When Server A assigns timestamp `t = 102` (its latest bound):
+```
+Server A:  [====A====]|
+                      t=102
+           
+Server B:     [====B====]
+              earliest=100
+              
+If Server B.earliest > 102, then we KNOW t is in the past for B
+```
+
+## Comparison with Other Time Systems
+
+| System | Time Representation | Uncertainty | Ordering Guarantee |
+|--------|-------------------|-------------|-------------------|
+| **NTP** | Single timestamp | ±10-100ms (unknown) | None |
+| **PTP** | Single timestamp | ±1ms (unknown) | None |
+| **TrueTime** | Interval [e, l] | ±1-7ms (bounded) | **Strong** |
+| **HLC** | (physical, logical) | N/A | Causal only |
+
+**The Critical Difference**: TrueTime doesn't just measure uncertainty - it **bounds and exposes** it through the API, allowing applications to make strong guarantees.
+
+## Real-World Example
+
+Let's see how TrueTime enables a distributed transaction:
+
+```python
+# User transfers $100 from Account A to Account B
+# Account A is in New York datacenter
+# Account B is in London datacenter
+
+class DistributedTransfer:
+    def execute(self):
+        # Step 1: Get TrueTime interval
+        interval = TT.now()
+        tx_timestamp = interval.latest  # Use latest bound
+        
+        print(f"Transaction timestamp: {tx_timestamp}")
+        print(f"Uncertainty: ±{interval.uncertainty/2}ms")
+        
+        # Step 2: Execute both updates with this timestamp
+        ny_server.deduct(account_a, 100, tx_timestamp)
+        london_server.add(account_b, 100, tx_timestamp)
+        
+        # Step 3: Commit wait - ensure timestamp is in the past
+        while not TT.after(tx_timestamp):
+            time.sleep(0.001)  # Wait 1ms
+        
+        # Step 4: Now ALL servers agree this is in the past
+        # Transaction is committed and visible globally!
+        print(f"Transaction committed at {tx_timestamp}")
+        
+# Run the transfer
+transfer = DistributedTransfer()
+transfer.execute()
+
+# Output:
+# Transaction timestamp: 1700000006000
+# Uncertainty: ±3ms
+# [waits ~3ms for commit]
+# Transaction committed at 1700000006000
+```
+
+**What just happened?**
+1. We assigned a timestamp using TrueTime's latest bound
+2. We applied changes at both datacenters with that timestamp
+3. We **waited** until that timestamp was definitely in the past for all servers
+4. Once the wait completes, the transaction is visible globally with strong consistency
+
+The wait time equals the uncertainty ε - typically 1-7ms. That's the price of external consistency!
+
+<Callout variant="tip" title="Next Steps">
+Now that you understand the API, let's explore **[how TrueTime achieves these tight uncertainty bounds](/blog/truetime/infrastructure)** through atomic clocks and GPS receivers.
+</Callout>
+
+## Summary
+
+- TrueTime returns **time intervals**, not single timestamps
+- The API consists of just three methods: `now()`, `after()`, `before()`
+- **Bounded uncertainty** (ε = 1-7ms) is the key innovation
+- Global agreement on time ordering enables external consistency
+- The cost is latency: every write waits ~ε milliseconds
+
+Understanding the TrueTime API is the foundation for understanding how Google Spanner achieves something most distributed databases can't: strong consistency without sacrificing availability.

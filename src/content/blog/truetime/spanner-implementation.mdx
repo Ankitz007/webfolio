@@ -1,0 +1,349 @@
+---
+title: 'TrueTime in Google Spanner'
+description: 'How Spanner uses TrueTime to achieve external consistency through the commit wait protocol and lock-free snapshot reads.'
+date: 2025-11-21
+tags: ['distributed systems', 'databases', 'spanner']
+authors: ['ankitz007']
+order: 3
+---
+
+import Callout from '@/components/Callout.astro'
+
+## TrueTime in Google Spanner
+
+Spanner is a globally distributed SQL database that provides **external consistency** (also called linearizability or strong consistency). TrueTime is the secret sauce that makes this possible.
+
+### External Consistency Explained
+
+**External consistency** means: if transaction T1 commits before transaction T2 starts (in real-world wallclock time), then T1's timestamp must be less than T2's timestamp.
+
+In other words: the database's view of transaction ordering matches reality.
+
+```python
+# Real-world timeline:
+# 11:00:00.000 - T1 commits
+# 11:00:00.500 - T2 starts
+# 11:00:01.000 - T2 commits
+
+# External consistency guarantee:
+# T1.commit_timestamp < T2.commit_timestamp
+
+# This seems obvious, but it's incredibly hard without TrueTime!
+```
+
+Without TrueTime, achieving this requires expensive coordination (like two-phase commit across all nodes for every transaction). With TrueTime, Spanner can assign timestamps independently at each datacenter with strong guarantees.
+
+## The Commit Wait Protocol
+
+Here's how Spanner uses TrueTime to assign commit timestamps:
+
+**Step-by-Step Process:**
+
+```python
+class SpannerTransaction:
+    def __init__(self):
+        self.start_time = TT.now().latest  # Pessimistic: latest possible time
+        self.writes = []
+        
+    def add_write(self, key, value):
+        """Buffer write operations."""
+        self.writes.append((key, value))
+        
+    def commit(self):
+        """
+        Commit transaction using TrueTime.
+        
+        This implements the critical 'commit wait' protocol.
+        """
+        # Step 1: Assign commit timestamp
+        # Use the latest bound to ensure this timestamp is >= all reads/writes
+        interval = TT.now()
+        s = interval.latest  # Assign commit timestamp
+        
+        print(f"Assigned commit timestamp: {s}")
+        
+        # Step 2: Apply writes to storage with timestamp 's'
+        for key, value in self.writes:
+            storage.write(key, value, timestamp=s)
+        
+        # Step 3: *** COMMIT WAIT ***
+        # Wait until we're certain 's' is in the past at ALL servers
+        # This ensures external consistency!
+        while not TT.after(s):
+            time.sleep(0.001)  # Sleep 1ms, check again
+        
+        print(f"Commit wait complete. Transaction is now visible.")
+        
+        # Step 4: Transaction is now committed and visible
+        # Any future transaction will see this commit
+        return s
+
+# Example usage
+tx = SpannerTransaction()
+tx.add_write("account:123:balance", 1000)
+commit_ts = tx.commit()
+
+# The commit wait ensures that when this returns, 
+# ALL servers in the world agree this transaction happened in the past
+```
+
+### Why Commit Wait is Necessary
+
+Without commit wait, consider this scenario:
+
+```
+Server A: Assigns commit timestamp = 100
+Server A: Clock says current time = 95 (clock is ahead!)
+Server B: Asks "what's the latest committed data?"
+Server A: Returns data with timestamp 100
+Server B: Its clock says current time = 98
+Server B: Thinks the data is from the future! 🤯
+```
+
+By waiting until `TT.after(s)` is true, we ensure that *every server's clock earliest bound* is past the commit timestamp. The transaction is truly in the past for everyone.
+
+**The Cost**: Commit wait adds latency equal to ε (the uncertainty). With ε = 4ms average, every write transaction pays an extra 4ms. This is the price of external consistency.
+
+<Callout variant="important">
+**Latency Trade-off**: Spanner sacrifices 4-7ms of latency per write transaction to gain external consistency. For many applications (financial systems, inventory management), this trade-off is worth it. For others (social media feeds), eventual consistency is fine.
+</Callout>
+
+## Detailed Commit Wait Example
+
+Let's trace through a real commit:
+
+```python
+# Time    Event                                    TT.now()
+# ----    -----                                    --------
+# 0ms     Transaction starts                       [98, 102]
+# 5ms     All writes buffered                      [103, 107]
+# 10ms    Call commit()                            [108, 112]
+#         ↳ Assign s = 112 (latest bound)
+#         ↳ Apply writes to storage
+#         ↳ Start commit wait
+
+# 11ms    Check TT.after(112)                      [109, 113]
+#         ↳ 112 < 109? No → keep waiting
+
+# 12ms    Check TT.after(112)                      [110, 114]
+#         ↳ 112 < 110? No → keep waiting
+
+# 13ms    Check TT.after(112)                      [111, 115]
+#         ↳ 112 < 111? No → keep waiting
+
+# 14ms    Check TT.after(112)                      [112, 116]
+#         ↳ 112 < 112? No → keep waiting
+
+# 15ms    Check TT.after(112)                      [113, 117]
+#         ↳ 112 < 113? YES! → commit complete
+
+# Total wait: ~5ms (roughly equal to ε)
+```
+
+**Key Insight**: The commit wait duration is approximately equal to the uncertainty ε at the time of commit. Higher uncertainty = longer wait.
+
+## Read-Only Transactions
+
+TrueTime also enables efficient **lock-free snapshot reads** across datacenters:
+
+```python
+class SnapshotRead:
+    def __init__(self):
+        # Choose a snapshot time that's safe
+        # Use earliest bound to ensure data exists
+        self.snapshot_timestamp = TT.now().earliest
+        
+    def read(self, key):
+        """
+        Read data as of the snapshot timestamp.
+        
+        No locks needed! Just read the most recent version 
+        with timestamp <= snapshot_timestamp.
+        """
+        return storage.read(key, timestamp=self.snapshot_timestamp)
+
+# Example: Read account balances across multiple datacenters
+snapshot = SnapshotRead()
+balance_ny = snapshot.read("account:123:balance")  # New York
+balance_london = snapshot.read("account:456:balance")  # London
+
+# Both reads see a globally consistent snapshot!
+# No locks, no coordination, works across continents.
+```
+
+This is possible because:
+1. All writes have TrueTime commit timestamps
+2. Committed transactions have completed commit wait
+3. We can read any timestamp safely in the past
+
+<Callout variant="tip" title="Performance Win">
+Lock-free snapshot reads enable Spanner to achieve **10,000+ reads per second per node** without coordination. This is a massive advantage over traditional distributed databases that require locks or two-phase commit for consistency.
+</Callout>
+
+## Why Snapshot Reads Work
+
+Let's visualize the guarantee:
+
+```
+Timeline:
+
+Write Transaction (datacenter A):
+  Start: 100    Commit: 112    Commit Wait: 117
+         |-------writes-------|----wait----|
+                                           ↑
+                        ALL servers agree 112 is in past
+
+Read Transaction (datacenter B):
+  Start: 115    Snapshot: 113
+         |--reads@113--|
+                ↑
+         Reads see all data committed before 113
+```
+
+**The Magic**: Because the write transaction waited until `TT.after(112)`, we're guaranteed that:
+- At time 115, ALL servers know 112 has passed
+- Reading at timestamp 113 will see that committed data
+- No locks needed - the time guarantee is sufficient!
+
+## Performance Characteristics
+
+### Typical Latency Breakdown
+
+```
+Read latency (single datacenter):
+  - Network RTT: ~1ms
+  - Disk read: ~1ms (SSD)
+  - Total: ~2-5ms ✅
+
+Write latency (single datacenter):
+  - Network RTT: ~1ms
+  - Disk write: ~1ms
+  - Commit wait: ~4ms ⚠️
+  - Total: ~6-10ms
+
+Cross-continental write:
+  - Network RTT: ~100-150ms
+  - Disk writes: ~1ms
+  - Commit wait: ~4ms
+  - Total: ~105-160ms
+```
+
+**The 4ms Tax**: Every write pays the commit wait penalty. This is unavoidable for external consistency.
+
+### Uncertainty Budget
+
+The uncertainty ε affects two things:
+
+1. **Write latency**: Longer uncertainty = longer commit wait
+2. **Staleness**: Read-only transactions might see slightly stale data
+
+```python
+# Uncertainty impact on reads
+interval = TT.now()
+snapshot_timestamp = interval.earliest
+
+# In the worst case, this snapshot could be up to ε old
+max_staleness = interval.uncertainty  # ~4ms typical
+
+# For most applications, 4ms staleness is imperceptible!
+```
+
+## Real-World Transaction Example
+
+Let's see a complete example with multiple operations:
+
+```python
+class BankTransfer:
+    """Transfer money between accounts using Spanner."""
+    
+    def transfer(self, from_account, to_account, amount):
+        # Start read-write transaction
+        interval = TT.now()
+        tx_start = interval.latest
+        
+        print(f"Transaction start: {tx_start}")
+        print(f"Uncertainty: ±{interval.uncertainty/2}ms")
+        
+        # Read current balances (with timestamp)
+        from_balance = storage.read(from_account, tx_start)
+        to_balance = storage.read(to_account, tx_start)
+        
+        # Validate sufficient funds
+        if from_balance < amount:
+            raise InsufficientFunds()
+        
+        # Buffer writes
+        writes = [
+            (from_account, from_balance - amount),
+            (to_account, to_balance + amount)
+        ]
+        
+        # Commit with TrueTime
+        commit_interval = TT.now()
+        commit_ts = commit_interval.latest
+        
+        # Apply all writes
+        for key, value in writes:
+            storage.write(key, value, commit_ts)
+        
+        print(f"Commit timestamp: {commit_ts}")
+        print(f"Starting commit wait...")
+        
+        # COMMIT WAIT
+        wait_start = time.now()
+        while not TT.after(commit_ts):
+            time.sleep(0.001)
+        wait_duration = time.now() - wait_start
+        
+        print(f"Commit wait completed in {wait_duration}ms")
+        print(f"Transaction committed!")
+        
+        return commit_ts
+
+# Execute transfer
+transfer = BankTransfer()
+ts = transfer.transfer("account:alice", "account:bob", 100)
+
+# Output:
+# Transaction start: 1700000112000
+# Uncertainty: ±3ms
+# Commit timestamp: 1700000118000
+# Starting commit wait...
+# Commit wait completed in 4.2ms
+# Transaction committed!
+```
+
+**What We Achieved:**
+- ✅ External consistency: Transaction order matches wall-clock time
+- ✅ No distributed locks: Used TrueTime instead
+- ✅ Cross-datacenter guarantee: Works even if accounts in different datacenters
+- ⚠️ Cost: 4ms commit wait latency
+
+## When the Overhead is Worth It
+
+TrueTime's overhead is justified when you need:
+
+- **Financial transactions**: Exact ordering prevents double-spending
+- **Inventory management**: Prevents overselling products
+- **Audit logs**: Guaranteed time ordering for compliance
+- **Distributed SQL**: ACID guarantees across continents
+
+TrueTime is *not* worth it for:
+
+- **Social media feeds**: Eventual consistency is fine
+- **Analytics**: Approximate ordering is sufficient
+- **Caching layers**: Staleness is acceptable
+
+<Callout variant="tip" title="Next Steps">
+Curious if you can build TrueTime yourself? Check out **[Alternatives & Real-World Impact](/blog/truetime/alternatives)** to explore other approaches and understand when to use Spanner.
+</Callout>
+
+## Summary
+
+- **Commit wait** ensures external consistency by waiting ~ε milliseconds
+- **Lock-free snapshot reads** enable massive read throughput
+- Write latency increases by **4-7ms** for consistency guarantees
+- **Cross-datacenter transactions** work without distributed locks
+- The trade-off: **latency for correctness**
+
+Spanner's use of TrueTime proves that strong consistency in distributed systems is possible - if you're willing to invest in the infrastructure and pay the latency cost.
