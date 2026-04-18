@@ -4,6 +4,7 @@ import mdx from '@astrojs/mdx'
 import react from '@astrojs/react'
 import sitemap from '@astrojs/sitemap'
 import icon from 'astro-icon'
+import mermaid from 'astro-mermaid'
 
 import expressiveCode from 'astro-expressive-code'
 import { rehypeHeadingIds } from '@astrojs/markdown-remark'
@@ -21,6 +22,10 @@ import { remarkPlugins } from './plugins'
 export default defineConfig({
   site: 'https://ankitz007.vercel.app',
   integrations: [
+    mermaid({
+      autoTheme: true,
+      enableLog: false,
+    }),
     expressiveCode({
       themes: ['github-light', 'github-dark'],
       plugins: [pluginCollapsibleSections(), pluginLineNumbers()],

@@ -1,0 +1,35 @@
+---
+title: 'HTTPS Glossary'
+description: 'Quick reference for abbreviations and terms used in TLS and HTTPS.'
+date: 2026-04-18
+tags: ['networking', 'security', 'https', 'tls']
+authors: ['ankitz007']
+order: 1
+---
+
+## Terms and Abbreviations
+
+| Term | Stands For | What It Means |
+|---|---|---|
+| **AEAD** | Authenticated Encryption with Associated Data | A cipher mode that encrypts and integrity-checks data in a single operation. AES-GCM and ChaCha20-Poly1305 are examples. |
+| **AES-GCM** | Advanced Encryption Standard, Galois/Counter Mode | A symmetric AEAD cipher used for bulk data encryption in TLS. Hardware-accelerated on modern CPUs. |
+| **ARP** | Address Resolution Protocol | Maps IP addresses to MAC addresses on a local network. ARP spoofing poisons a device's ARP cache to redirect traffic. |
+| **BGP** | Border Gateway Protocol | The routing protocol between autonomous systems on the internet. BGP hijacking reroutes entire IP prefixes. |
+| **CA** | Certificate Authority | A trusted organization (e.g., DigiCert, Let's Encrypt) that issues X.509 certificates after verifying domain ownership. |
+| **CRL** | Certificate Revocation List | A CA-published list of certificates revoked before expiry, typically due to key compromise. |
+| **CT** | Certificate Transparency | A public append-only log system where CAs must record every certificate they issue. |
+| **ECH** | Encrypted Client Hello | A TLS extension that encrypts the ClientHello, hiding SNI and server identity from network observers. |
+| **ECDHE** | Elliptic Curve Diffie-Hellman Ephemeral | A key agreement scheme using elliptic curve math. The **E** (ephemeral) means fresh keys are generated per session, enabling PFS. |
+| **HKDF** | HMAC-based Key Derivation Function | Used in TLS 1.3 to derive multiple keys from a shared secret. Replaces the PRF-based scheme from TLS 1.2. |
+| **HMAC** | Hash-based Message Authentication Code | A MAC computed using a hash function and a secret key. Used in TLS `Finished` messages to prove both parties derived the same keys. |
+| **HSTS** | HTTP Strict Transport Security | A response header instructing browsers to always use HTTPS for a domain. Prevents SSL stripping on subsequent visits. |
+| **MITM** | Man-in-the-Middle | An attack where a third party secretly intercepts and potentially modifies communication between two parties. |
+| **OCSP** | Online Certificate Status Protocol | A protocol for real-time certificate revocation checks. OCSP stapling lets the server include a pre-fetched response in the handshake. |
+| **PFS** | Perfect Forward Secrecy | The property that compromise of a long-term private key cannot decrypt previously recorded sessions, because each session used ephemeral keys that no longer exist. |
+| **PRF** | Pseudorandom Function | A deterministic function producing output indistinguishable from random. Used in TLS 1.2 to derive session keys. |
+| **RFC** | Request for Comments | IETF standards documents. TLS 1.2 is RFC 5246; TLS 1.3 is RFC 8446. |
+| **RSA** | Rivest-Shamir-Adleman | A public-key cryptosystem used for server authentication in TLS. TLS 1.3 removed RSA key exchange. |
+| **RTT** | Round Trip Time | Time for a message to travel from sender to receiver and back. TLS 1.2 adds 2 RTTs; TLS 1.3 adds 1. |
+| **SAN** | Subject Alternative Name | An X.509 certificate field listing domain names the certificate covers. |
+| **SNI** | Server Name Indication | A TLS extension where the client announces the target hostname in ClientHello. Allows one IP to host multiple certificates. |
+| **SSL** | Secure Sockets Layer | The predecessor to TLS. SSL 2.0 and 3.0 are deprecated and broken. The protocol in use today is always TLS. |

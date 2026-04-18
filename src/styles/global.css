@@ -96,6 +96,13 @@
   ::file-selector-button {
     @apply border-border outline-ring/50 tracking-tight;
   }
+
+  .mermaid svg {
+    max-width: 100% !important;
+    height: auto !important;
+    display: block;
+    margin-inline: auto;
+  }
 }
 
 /* When the mobile subposts component is present we add a class on <html>

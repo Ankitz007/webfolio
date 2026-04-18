@@ -26,8 +26,7 @@ const badgeVariants = cva(
 )
 
 interface BadgeProps
-  extends React.ComponentProps<'span'>,
-    VariantProps<typeof badgeVariants> {
+  extends React.ComponentProps<'span'>, VariantProps<typeof badgeVariants> {
   asChild?: boolean
   showTechIcon?: boolean
   techTag?: string

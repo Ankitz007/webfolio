@@ -1,0 +1,354 @@
+---
+title: 'H3 Use Cases'
+description: 'Real-world applications of H3 at Uber, DoorDash, and beyond, plus comparisons with alternative geospatial systems.'
+date: 2025-11-21
+tags: ['System Design', 'Geospatial', 'Algorithms']
+authors: ['ankitz007']
+order: 3
+---
+
+import Callout from '@/components/Callout.astro'
+
+## Real-World Use Cases
+
+H3 powers geospatial analysis at some of the world's largest tech companies. Let's explore how they use it to solve concrete problems.
+
+### 1. Uber: Dynamic Pricing & Demand Heatmaps
+
+**Problem**: Calculate surge pricing zones in real-time based on rider demand vs. driver supply across an entire city. Traditional approaches would require millions of distance calculations per second.
+
+**H3 Solution**:
+
+```python
+# Step 1: Index all riders and drivers at resolution 7 (~1km hexagons)
+rider_cells = {}
+for rider in active_riders:
+    h3_index = h3.geo_to_h3(rider.lat, rider.lng, 7)
+    rider_cells[h3_index] = rider_cells.get(h3_index, 0) + 1
+
+driver_cells = {}
+for driver in available_drivers:
+    h3_index = h3.geo_to_h3(driver.lat, driver.lng, 7)
+    driver_cells[h3_index] = driver_cells.get(h3_index, 0) + 1
+
+# Step 2: Calculate demand score for each cell
+surge_zones = {}
+all_cells = set(rider_cells.keys()) | set(driver_cells.keys())
+
+for cell in all_cells:
+    riders = rider_cells.get(cell, 0)
+    drivers = driver_cells.get(cell, 0)
+    
+    if drivers == 0:
+        surge_zones[cell] = MAX_SURGE  # No supply!
+    else:
+        demand_ratio = riders / drivers
+        surge_zones[cell] = calculate_multiplier(demand_ratio)
+
+# Step 3: Smooth boundaries using k-ring neighbors
+smoothed_surge = {}
+for cell, multiplier in surge_zones.items():
+    neighbors = h3.k_ring(cell, 1)  # cell + 6 neighbors
+    avg_surge = sum(surge_zones.get(n, 1.0) for n in neighbors) / len(neighbors)
+    smoothed_surge[cell] = avg_surge
+```
+
+**Result**: 
+- Real-time surge pricing updates that scale to millions of users
+- Smooth price transitions (no jarring 2x → 5x jumps at street corners)
+- Sub-second computation for entire city grids
+
+**Why H3 wins**: Hash map lookups instead of O(N²) distance calculations.
+
+### 2. DoorDash: Restaurant Coverage Areas
+
+**Problem**: Determine which restaurants can deliver to a given customer address. Calculating exact driving distances to thousands of restaurants is too slow.
+
+**H3 Solution**:
+
+```python
+# Offline: Precompute delivery zones for each restaurant
+def index_restaurant_coverage(restaurant):
+    # Define delivery zone (e.g., 3km radius circle)
+    delivery_circle = create_circle(restaurant.lat, restaurant.lng, 3000)
+    
+    # Convert to H3 hexagons at resolution 9 (~0.1km² cells)
+    delivery_hexagons = h3.polyfill(delivery_circle, 9)
+    
+    # Store in database
+    db.execute("""
+        INSERT INTO restaurant_coverage (restaurant_id, h3_index)
+        VALUES (%s, %s)
+    """, [(restaurant.id, hex) for hex in delivery_hexagons])
+
+# Online: Fast restaurant filtering
+def find_available_restaurants(customer_lat, customer_lng):
+    # Convert customer location to H3
+    customer_h3 = h3.geo_to_h3(customer_lat, customer_lng, 9)
+    
+    # Fast database query
+    restaurants = db.execute("""
+        SELECT DISTINCT restaurant_id, name, cuisine
+        FROM restaurant_coverage
+        WHERE h3_index = %s
+    """, [customer_h3])
+    
+    return restaurants
+```
+
+**Result**:
+- Instant restaurant filtering (< 10ms query time)
+- No distance calculations needed for initial filtering
+- Can still refine with exact distances for final ranking
+
+**Why H3 wins**: Single indexed database query replaces thousands of distance calculations.
+
+```mermaid
+graph LR
+    CL["Customer Location<br/>(lat, lng)"] --> H3["Convert to H3<br/>Resolution 9"]
+    H3 --> DB["DB Lookup<br/>WHERE h3_index = ?"]
+    DB --> R["50 Candidate<br/>Restaurants"]
+    R --> EX["Exact Distance<br/>Refinement"]
+    EX --> TOP["Top 10 Results"]
+```
+
+<Callout variant="tip">
+**Hybrid Approach**: Use H3 for fast filtering (reduces 10,000 restaurants to ~50 candidates), then apply exact distance calculations only on candidates for precision. Best of both worlds!
+</Callout>
+
+### 3. Epidemiology: Disease Outbreak Tracking
+
+**Problem**: Track COVID-19 case density at neighborhood level while preserving individual privacy. Publishing exact addresses would violate privacy, but coarse zip-code-level data lacks actionable granularity.
+
+**H3 Solution**:
+
+```python
+# Privacy-preserving case aggregation
+def aggregate_cases(case_locations):
+    # Convert exact locations to H3 resolution 7 (~5km² cells)
+    case_counts = {}
+    for case in case_locations:
+        h3_index = h3.geo_to_h3(case.lat, case.lng, 7)
+        case_counts[h3_index] = case_counts.get(h3_index, 0) + 1
+    
+    # Only publish cells with minimum threshold (prevent re-identification)
+    MIN_CASES = 5
+    public_counts = {cell: count for cell, count in case_counts.items() 
+                     if count >= MIN_CASES}
+    
+    return public_counts
+
+# Hotspot identification
+def find_hotspots(case_counts, threshold=20):
+    hotspots = []
+    for cell, count in case_counts.items():
+        if count > threshold:
+            # Drill down to finer resolution for targeted response
+            children = h3.h3_to_children(cell, 9)
+            hotspots.append({
+                'region': cell,
+                'detail_cells': children,
+                'case_count': count
+            })
+    return hotspots
+
+# Identify at-risk neighboring areas
+def find_at_risk_areas(hotspot_cells):
+    at_risk = set()
+    for cell in hotspot_cells:
+        # Add 1-ring and 2-ring neighbors
+        at_risk.update(h3.k_ring(cell, 2))
+    return at_risk - set(hotspot_cells)  # Exclude hotspots themselves
+```
+
+**Result**:
+- Privacy-preserving heat maps (no exact addresses)
+- Actionable granularity (neighborhood-level, not city-level)
+- Real-time updates as new cases are reported
+- Targeted intervention in high-risk areas
+
+**Why H3 wins**: Built-in spatial aggregation with adjustable granularity.
+
+### 4. Retail: Store Cannibalization Analysis
+
+**Problem**: If a company opens a new store, will it cannibalize sales from existing stores? Need to analyze market overlap and population density.
+
+**H3 Solution**:
+
+```python
+# Model each store's market area
+def create_market_model(store_location, sales_data):
+    # Customer locations from sales data
+    customer_hexagons = {}
+    for sale in sales_data:
+        h3_index = h3.geo_to_h3(sale.customer_lat, sale.customer_lng, 8)
+        customer_hexagons[h3_index] = customer_hexagons.get(h3_index, 0) + sale.revenue
+    
+    return customer_hexagons
+
+# Analyze cannibalization for proposed new store
+def analyze_cannibalization(proposed_location, existing_stores):
+    # Proposed store's potential market (3km radius)
+    proposed_area = create_circle_polygon(proposed_location, 3000)
+    proposed_hexagons = set(h3.polyfill(proposed_area, 8))
+    
+    cannibalization = {}
+    for store in existing_stores:
+        # Existing store's market area
+        existing_market = create_market_model(store.location, store.sales_history)
+        existing_hexagons = set(existing_market.keys())
+        
+        # Calculate overlap
+        overlap = proposed_hexagons & existing_hexagons
+        overlap_revenue = sum(existing_market[h] for h in overlap)
+        
+        cannibalization[store.id] = {
+            'overlap_cells': len(overlap),
+            'at_risk_revenue': overlap_revenue,
+            'percentage': overlap_revenue / store.total_revenue * 100
+        }
+    
+    return cannibalization
+
+# Optimize new store location
+def find_optimal_location(candidates, existing_stores):
+    best_location = None
+    min_cannibalization = float('inf')
+    
+    for candidate in candidates:
+        cannib = analyze_cannibalization(candidate, existing_stores)
+        total_cannib = sum(c['at_risk_revenue'] for c in cannib.values())
+        
+        if total_cannib < min_cannibalization:
+            min_cannibalization = total_cannib
+            best_location = candidate
+    
+    return best_location, min_cannibalization
+```
+
+**Result**:
+- Data-driven site selection that maximizes incremental revenue
+- Quantify risk to existing stores
+- Visualize market overlap on interactive maps
+
+**Why H3 wins**: Spatial overlap analysis becomes set intersection instead of complex polygon calculations.
+
+<Callout variant="important" title="Google's S2 vs. H3">
+Google uses **S2**, a square-based geospatial indexing system, for Google Maps. S2 uses squares instead of hexagons and has different trade-offs:
+- **S2 strengths**: Better for edge detection (roads, boundaries), quad-tree hierarchy familiar to developers
+- **H3 strengths**: Better for area analysis (density, coverage), uniform neighbor distance, circle approximation
+
+Both are excellent systems optimized for different use cases. H3 is open-source; S2 is open-source but with less extensive documentation.
+</Callout>
+
+## H3 vs. Traditional Approaches
+
+Let's compare H3 with alternative geospatial strategies.
+
+### Approach 1: Raw Lat/Lng with Distance Calculations
+
+**How it works**: Store coordinates, calculate distances on every query using the Haversine formula.
+
+```sql
+SELECT * FROM drivers
+WHERE haversine_distance(lat, lng, 37.7749, -122.4194) < 2000;
+```
+
+**Problems**:
+- **O(N) scan**: Must check every record in the table
+- **Expensive CPU**: Haversine formula uses trigonometric functions (sin, cos, acos)
+- **No indexing**: Standard lat/lng indexes don't help for radius queries
+- **Scale issues**: 1M records × 1,000 queries/sec = 1B distance calculations/sec
+
+**When to use**: Very small datasets (< 1,000 points) where simplicity matters more than performance.
+
+### Approach 2: Geohash
+
+**How it works**: Z-order curve encoding of coordinates into base-32 strings. Nearby points have similar prefixes.
+
+```python
+import geohash
+
+# Encode location
+gh = geohash.encode(37.7749, -122.4194, precision=7)
+# Returns: '9q8yyzr'
+
+# Nearby points have similar prefixes
+nearby_gh = geohash.encode(37.7750, -122.4195, precision=7)
+# Returns: '9q8yyzr' (same!)
+```
+
+**Advantages**:
+- Lexicographically sortable (can use B-tree indexes)
+- Supported by Redis (`GEORADIUS`), Elasticsearch
+- Simple to understand (just strings)
+
+**Disadvantages**:
+- **Rectangles, not hexagons**: Edge effects and distance distortion at boundaries
+- **No hierarchy**: Can't efficiently aggregate to parent cells (must substring manipulation)
+- **Boundary issues**: Points just across a geohash boundary have completely different prefixes
+- **Variable precision**: Precision 6 ≈ ±0.61km, Precision 7 ≈ ±0.076km (big jump)
+
+**When to use**: Already using Redis/Elasticsearch and need simple geospatial queries without complex hierarchy.
+
+### Approach 3: PostGIS with R-Tree
+
+**How it works**: Spatial database extension for PostgreSQL with R-Tree indexing for geometric queries.
+
+```sql
+-- Create spatial index
+CREATE INDEX idx_locations_geom ON locations USING GIST (geom);
+
+-- Spatial query
+SELECT * FROM locations
+WHERE ST_DWithin(geom, ST_SetSRID(ST_MakePoint(-122.4194, 37.7749), 4326), 2000);
+```
+
+**Advantages**:
+- Full spatial SQL support (intersections, buffers, unions)
+- Accurate geometry operations
+- Handles arbitrary shapes (points, lines, polygons)
+- Mature, battle-tested technology
+
+**Disadvantages**:
+- **Complexity**: Requires PostgreSQL + PostGIS extension
+- **Heavier**: More storage and computation overhead
+- **Less portable**: Geometry data types don't serialize easily for caching/messaging
+- **No built-in hierarchy**: Must manually implement multi-resolution logic
+
+**When to use**: Complex spatial queries (polygon intersections, buffering), already using PostgreSQL, need exact geometric precision.
+
+### H3 Advantages Summary
+
+| Feature | Raw Lat/Lng | Geohash | PostGIS | H3 |
+|---------|-------------|---------|---------|-----|
+| **Hierarchy** | ❌ | ❌ | ⚠️ (manual) | ✅ |
+| **Uniform Distance** | N/A | ❌ | ✅ | ✅ |
+| **Fast Proximity** | ❌ | ⚠️ | ✅ | ✅ |
+| **Compact Storage** | ✅ | ✅ | ❌ | ✅ |
+| **Shape** | Points | Rectangles | Any | Hexagons |
+| **Aggregation** | Hard | Hard | Medium | Easy |
+| **Learning Curve** | Easy | Easy | Hard | Medium |
+| **Database Support** | Universal | Redis, Elastic | PostgreSQL | Growing |
+
+## When to Choose H3
+
+**H3 is the best choice when**:
+- ✅ You need area-based analysis (density, coverage, heatmaps)
+- ✅ Multi-resolution hierarchy matters (aggregate/drill-down)
+- ✅ Uniformity is important (consistent neighbor distance)
+- ✅ You're processing millions of locations
+- ✅ Fast proximity is critical (driver dispatch, restaurant search)
+
+**Choose alternatives when**:
+- PostGIS: Complex geometric operations, exact precision required
+- Geohash: Already using Redis/Elasticsearch, simple use case
+- Raw lat/lng: Tiny dataset, simplicity over performance
+
+## Conclusion
+
+H3 excels at the specific problem of hierarchical spatial indexing for area-based analysis. Real-world deployments at Uber, DoorDash, and epidemiology organizations prove its value at scale.
+
+The key insight: **transforming geographic coordinates into hierarchical indexes** turns expensive geometric calculations into cheap set operations and database queries.
+
+Next, let's explore **[Performance & Integration](/blog/uber-h3/performance-integration)** to understand H3's limitations and how to use it effectively in production systems.

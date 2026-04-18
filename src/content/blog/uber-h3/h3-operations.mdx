@@ -1,0 +1,364 @@
+---
+title: 'H3 Operations'
+description: 'Master H3s core API functions with practical code examples for conversion, hierarchy, neighbors, and regions.'
+date: 2025-11-21
+tags: ['System Design', 'Geospatial', 'Algorithms']
+authors: ['ankitz007']
+order: 2
+---
+
+import Callout from '@/components/Callout.astro'
+
+## Core H3 Operations
+
+H3 provides a rich API for geospatial operations. Once you understand these core functions, you can build sophisticated location-based features with just a few lines of code.
+
+All examples use the JavaScript API, but the concepts apply to Python, Java, Go, and other language bindings.
+
+## 1. Conversion Functions
+
+These functions translate between geographic coordinates and H3 indexes.
+
+### geoToH3: Coordinates → H3 Index
+
+Convert latitude/longitude to an H3 cell index:
+
+```javascript
+const h3 = require('h3-js');
+
+// Uber HQ in San Francisco
+const h3Index = h3.geoToH3(37.7749, -122.4194, 9);
+console.log(h3Index);
+// Output: '8928308280bffff'
+```
+
+**Parameters**:
+- `lat`: Latitude (-90 to 90)
+- `lng`: Longitude (-180 to 180)
+- `resolution`: Resolution level (0-15)
+
+**Use cases**:
+- Index user locations for fast lookup
+- Convert GPS coordinates from mobile devices
+- Precompute indexes for static locations (stores, landmarks)
+
+### h3ToGeo: H3 Index → Center Coordinates
+
+Get the center point of an H3 cell:
+
+```javascript
+const [lat, lng] = h3.h3ToGeo('8928308280bffff');
+console.log(`Center: ${lat}, ${lng}`);
+// Output: Center: 37.7749, -122.4194
+```
+
+**Use cases**:
+- Display marker on a map for an H3 cell
+- Calculate approximate distances between cells
+- Render cell centers in visualizations
+
+### h3ToGeoBoundary: H3 Index → Hexagon Vertices
+
+Get the 6 vertices of the hexagon boundary:
+
+```javascript
+const boundary = h3.h3ToGeoBoundary('8928308280bffff');
+console.log(boundary);
+// Output: Array of 6 [lat, lng] pairs
+// [[37.7751, -122.4196], [37.7753, -122.4193], ...]
+```
+
+**Use cases**:
+- Draw hexagon polygons on maps
+- Calculate actual cell area
+- Visualize H3 grid overlays
+
+<Callout variant="tip">
+**Rendering Hexagons**: Most mapping libraries (Leaflet, Mapbox, Google Maps) can render polygons. Use `h3ToGeoBoundary` to get vertices, then create polygon overlays for beautiful hexagonal visualizations.
+</Callout>
+
+## 2. Hierarchy Functions
+
+Navigate the multi-resolution hierarchy.
+
+### h3ToParent: Zoom Out
+
+Get the parent cell at a coarser resolution:
+
+```javascript
+// Street block (resolution 9)
+const streetBlock = '8928308280bffff';
+
+// Get neighborhood (resolution 7)
+const neighborhood = h3.h3ToParent(streetBlock, 7);
+console.log(neighborhood);
+// Output: '872830828ffffff'
+```
+
+**Use cases**:
+- Aggregate fine-grained data to coarser levels
+- Build drill-down interfaces
+- Create hierarchical indexes for multi-scale queries
+
+### h3ToChildren: Zoom In
+
+Get all child cells at a finer resolution:
+
+```javascript
+// Neighborhood (resolution 7)
+const neighborhood = '872830828ffffff';
+
+// Get all street blocks (resolution 9)
+const streetBlocks = h3.h3ToChildren(neighborhood, 9);
+console.log(streetBlocks.length);
+// Output: 49 (7 x 7, two levels down)
+```
+
+**Use cases**:
+- Progressive disclosure (show overview, load details on demand)
+- Split coarse cells for finer analysis
+- Generate comprehensive coverage of a region
+
+<Callout variant="important">
+**Child Count Formula**: When going from resolution N to N+1, you get **7 children**. From N to N+2, you get **49 children** (7²). From N to N+k, you get **7^k children**. Plan your data volume accordingly!
+</Callout>
+
+## 3. Neighbor Functions
+
+Find adjacent and nearby cells.
+
+### kRing: Get Filled Disk of Neighbors
+
+Get all cells within k steps (includes the origin cell):
+
+```javascript
+const center = '8928308280bffff';
+
+// Get 1-ring (cell + 6 immediate neighbors = 7 cells)
+const ring1 = h3.kRing(center, 1);
+console.log(ring1.length); // 7
+
+// Get 2-ring (cell + up to 18 neighbors = 19 cells)
+const ring2 = h3.kRing(center, 2);
+console.log(ring2.length); // 19
+
+// Get 3-ring (37 cells)
+const ring3 = h3.kRing(center, 3);
+console.log(ring3.length); // 37
+```
+
+**Formula**: k-ring returns **1 + 3k(k+1)** cells for perfect hexagons.
+
+**Use cases**:
+- Find nearby drivers/restaurants within N hops
+- Smooth heatmap boundaries
+- Create buffer zones around points of interest
+
+### hexRing: Get Hollow Ring
+
+Get only cells at exactly k steps away (hollow ring):
+
+```javascript
+const center = '8928308280bffff';
+
+// Only cells at distance 2 (not 0 or 1)
+const ring2 = h3.hexRing(center, 2);
+console.log(ring2.length); // 12
+```
+
+**Formula**: Hollow ring at distance k has **6k cells** (for k > 0).
+
+**Use cases**:
+- Expand search radius incrementally
+- Visualize distance contours
+- Implement progressive search (search ring 1, then ring 2 if not found, etc.)
+
+### gridDistance: Manhattan Distance Between Cells
+
+Get the minimum number of hops between two cells:
+
+```javascript
+const cell1 = '8928308280bffff';
+const cell2 = '8928308281bffff';
+
+const distance = h3.gridDistance(cell1, cell2);
+console.log(distance); // 3 (cells are 3 hops apart)
+```
+
+**Use cases**:
+- Filter by grid proximity (faster than haversine distance)
+- Sort results by grid distance
+- Validate that cells are actually neighbors
+
+<Callout variant="warning">
+**Grid Distance ≠ Geographic Distance**: Grid distance is the number of hexagon hops, not meters. Two cells with distance=1 could be 175m apart (resolution 9) or 1.2km apart (resolution 7). Use geographic distance for precise measurements.
+</Callout>
+
+## 4. Region Functions
+
+Work with polygons and regions.
+
+### polyfill: Fill Polygon with Hexagons
+
+Get all H3 cells that cover a polygon:
+
+```javascript
+// GeoJSON polygon (e.g., downtown San Francisco)
+const polygon = {
+  type: 'Polygon',
+  coordinates: [[
+    [-122.4194, 37.7749],
+    [-122.4100, 37.7749],
+    [-122.4100, 37.7850],
+    [-122.4194, 37.7850],
+    [-122.4194, 37.7749]
+  ]]
+};
+
+// Fill with resolution 9 hexagons
+const hexagons = h3.polyfill(polygon, 9);
+console.log(hexagons.length); // ~50-100 hexagons
+```
+
+**Use cases**:
+- Define delivery zones for restaurants
+- Create geofenced regions
+- Index arbitrary shapes (parks, neighborhoods, city boundaries)
+
+### h3SetToMultiPolygon: Hexagons → Polygon
+
+Convert a set of H3 cells back into GeoJSON polygons:
+
+```javascript
+const hexagons = [
+  '8928308280bffff',
+  '8928308280cffff',
+  '8928308281bffff'
+];
+
+const polygon = h3.h3SetToMultiPolygon(hexagons);
+console.log(polygon);
+// Output: GeoJSON MultiPolygon representing the combined shape
+```
+
+**Use cases**:
+- Visualize aggregated regions
+- Export coverage areas as standard GeoJSON
+- Reconstruct service areas from indexed cells
+
+<Callout variant="tip" title="Polyfill Strategy">
+When indexing a polygon, use **containment mode** (only hexagons fully inside) for conservative coverage, or **intersection mode** (any hexagon touching) for complete coverage. H3 defaults to intersection mode.
+</Callout>
+
+## 5. Edge Functions
+
+Analyze movement and connectivity between cells.
+
+### getH3UnidirectionalEdge: Track Movement
+
+Get the directed edge between two adjacent cells:
+
+```javascript
+const origin = '8928308280bffff';
+const destination = '8928308280cffff';
+
+// Get the edge representing this movement
+const edge = h3.getH3UnidirectionalEdge(origin, destination);
+console.log(edge);
+// Output: '16928308280bffff' (edge index)
+```
+
+**Why edges matter**:
+- Each hexagon has 6 edges (one per side)
+- Edges are **directed**: origin→destination ≠ destination→origin
+- Edges have their own indexes, separate from cells
+
+**Use cases**:
+- Analyze traffic flow patterns
+- Track driver routes (sequence of edges)
+- Build road network representations
+- Measure congestion on specific hexagon boundaries
+
+### getH3UnidirectionalEdgeBoundary: Edge Geometry
+
+Get the geographic coordinates of an edge:
+
+```javascript
+const edge = '16928308280bffff';
+const boundary = h3.getH3UnidirectionalEdgeBoundary(edge);
+console.log(boundary);
+// Output: Array of 2 [lat, lng] pairs (the shared edge vertices)
+```
+
+**Use cases**:
+- Draw movement arrows on maps
+- Visualize traffic flow
+- Calculate edge lengths
+
+## Common Patterns and Combinations
+
+### Pattern 1: Proximity Search with Filtering
+
+```javascript
+// Find nearby restaurants within 500m
+const userLocation = h3.geoToH3(userLat, userLng, 9);
+const nearbyHexagons = h3.kRing(userLocation, 2); // ~19 hexagons
+
+// Fast index lookup
+const candidates = restaurants.filter(r => 
+  nearbyHexagons.includes(r.h3Index)
+);
+
+// Refine with exact distance
+const nearby = candidates.filter(r => 
+  haversineDistance(userLat, userLng, r.lat, r.lng) < 500
+);
+```
+
+**Result**: Fast indexing narrows 10,000 restaurants to ~50 candidates, then exact filtering gives precise results.
+
+### Pattern 2: Hierarchical Heatmap
+
+```javascript
+// High-detail heatmap for zoomed-in view
+const detailData = getDataAtResolution(9);
+
+// Aggregate to coarser resolution for zoomed-out view
+const overviewData = {};
+for (const [cell, value] of Object.entries(detailData)) {
+  const parent = h3.h3ToParent(cell, 7);
+  overviewData[parent] = (overviewData[parent] || 0) + value;
+}
+
+// Render appropriate resolution based on map zoom level
+const dataToRender = (mapZoom > 12) ? detailData : overviewData;
+```
+
+### Pattern 3: Coverage Analysis
+
+```javascript
+// Define service area
+const servicePolygon = restaurantDeliveryZone;
+const serviceHexagons = new Set(h3.polyfill(servicePolygon, 9));
+
+// Check if customer is in coverage
+const customerHex = h3.geoToH3(customerLat, customerLng, 9);
+const inCoverage = serviceHexagons.has(customerHex);
+
+// Or check 1-ring for "near boundary" cases
+const customerRing = h3.kRing(customerHex, 1);
+const nearCoverage = customerRing.some(hex => serviceHexagons.has(hex));
+```
+
+## Conclusion
+
+H3's API is designed for intuitive geospatial operations:
+- **Conversion functions** translate between coordinates and indexes
+- **Hierarchy functions** enable multi-scale analysis
+- **Neighbor functions** find nearby cells efficiently
+- **Region functions** work with arbitrary shapes
+- **Edge functions** track movement and connectivity
+
+Master these operations, and you can build sophisticated location-based features with minimal code.
+
+Next, let's see how these operations power real-world **[Use Cases](/blog/uber-h3/use-cases)** at companies like Uber and DoorDash.
